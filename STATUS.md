@@ -171,5 +171,10 @@ demselben `oauth.py` im selben Zielnetz:
 Benutzers. Falls Diagnose nötig wird, muss vorher feststehen, was nicht
 hineindarf.
 
-**Der Pre-commit-Hook ist nicht aktiv.** `hooks/pre-commit` liegt im Repo, aber
-ohne `git config core.hooksPath hooks` läuft er nie.
+**Der Pre-commit-Hook muss je Klon eingeschaltet werden.** `hooks/pre-commit`
+liegt im Repo, läuft aber erst nach `git config core.hooksPath hooks` — die
+Einstellung steht in `.git/config`, nicht im Repo. In diesem Klon ist sie seit
+dem 15. September 2026 gesetzt, gitleaks 8.30.1 ist installiert, der Hook hat
+ein eingeschleustes JWT abgewiesen, und die Historie bis dahin ist sauber. Er
+ruft `gitleaks git --pre-commit --staged` auf — `gitleaks protect` gilt seit
+8.19 als veraltet.
