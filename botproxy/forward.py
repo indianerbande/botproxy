@@ -131,8 +131,9 @@ class Forwarder:
         if relayed.status != 401:
             return relayed
         relayed.close()
-        # The endpoint's opinion beats our arithmetic on `exp`.
-        token = self._manager.force_refresh()
+        # The endpoint's opinion beats our arithmetic on `exp` — but only the
+        # first of several refused requests needs to fetch a new token.
+        token = self._manager.force_refresh(stale=token)
         return self._attempt(method, path, query, headers, body, token)
 
     def _attempt(

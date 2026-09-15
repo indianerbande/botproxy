@@ -137,14 +137,21 @@ class Manager:
                 raise AuthError("Kein Zugangstoken verfügbar.")
             return self._access
 
-    def force_refresh(self) -> str:
+    def force_refresh(self, stale: str | None = None) -> str:
         """Renew even though the token still looks valid.
 
         The endpoint answered 401 — its opinion beats our arithmetic. Clock
         skew, a revoked session, a restarted issuer: all of them look fine from
         `exp` alone.
+
+        `stale` is the token the caller was refused with. If it has already
+        been replaced by then, someone else did the work while this caller was
+        waiting for the lock, and renewing again would ask the provider ten
+        times for what ten requests needed once.
         """
         with self._lock:
+            if stale is not None and self._access is not None and self._access != stale:
+                return self._access
             self._expires_at = datetime.now(UTC)
             return self.ensure_fresh()
 
