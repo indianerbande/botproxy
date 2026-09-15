@@ -17,6 +17,10 @@ from botproxy.errors import UpstreamError
 
 MAX_BODY_BYTES = 64 * 1024 * 1024
 
+# A client closing its end. ConnectionAbortedError is how Windows reports it
+# when its own side gave up the connection.
+_CLIENT_GONE = (ConnectionResetError, ConnectionAbortedError, BrokenPipeError)
+
 
 def say(message: str) -> None:
     print(message, file=sys.stderr, flush=True)
@@ -206,7 +210,7 @@ class Handler(BaseHTTPRequestHandler):
                 self.wfile.flush()
             self.wfile.write(b"0\r\n\r\n")
             self.wfile.flush()
-        except (BrokenPipeError, ConnectionResetError):
+        except _CLIENT_GONE:
             # The client hung up mid-answer. Its right; nothing to report.
             pass
         finally:
@@ -239,6 +243,18 @@ class Proxy(ThreadingHTTPServer):
         if hasattr(socket, "SO_EXCLUSIVEADDRUSE"):
             self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
         super().server_bind()
+
+    def handle_error(self, request: object, client_address: object) -> None:
+        """One line for a real failure, nothing for a client that hung up.
+
+        The default prints a full traceback. Editor clients drop idle kept-alive
+        connections all the time, and each drop would bury the status line
+        under a stack trace that says nothing but "the other side left".
+        """
+        exc = sys.exception()
+        if isinstance(exc, _CLIENT_GONE):
+            return
+        say(f"Fehler bei einer Anfrage: {type(exc).__name__}: {exc}")
 
     def probe(self) -> None:
         """Ask the endpoint for its models — the one honest test of the chain.

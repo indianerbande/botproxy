@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import contextlib
 import json
 import socket
+import struct
 import threading
 import urllib.error
 import urllib.request
@@ -231,3 +233,36 @@ def test_zweite_instanz_bekommt_den_port_nicht(proxy, signed_in):
     helps if binding actually fails. On Windows SO_REUSEADDR would let it pass."""
     with pytest.raises(OSError):
         server.Proxy(signed_in, "zweiter-key")
+
+
+def test_aufgelegter_client_hinterlaesst_keinen_traceback(proxy, capsys):
+    """A client resetting an idle kept-alive connection is routine, not news."""
+    port = proxy.server_address[1]
+    s = socket.create_connection(("127.0.0.1", port))
+    s.settimeout(5)
+    s.sendall(b"GET /_botproxy/status HTTP/1.1\r\nHost: x\r\n\r\n")
+    antwort = b""
+    while b"}" not in antwort:
+        antwort += s.recv(65536)
+    # Linger 0: close sends RST instead of FIN, as a dropped pooled connection does.
+    s.setsockopt(socket.SOL_SOCKET, socket.SO_LINGER, struct.pack("ii", 1, 0))
+    s.close()
+    threading.Event().wait(0.5)
+
+    fehler = capsys.readouterr().err
+    assert "Traceback" not in fehler
+    assert "ConnectionResetError" not in fehler
+
+
+def test_echter_fehler_ist_eine_zeile(proxy, capsys, monkeypatch):
+    def kaputt(self):
+        raise ValueError("etwas ging schief")
+
+    monkeypatch.setattr(server.Handler, "do_GET", kaputt)
+    with contextlib.suppress(OSError):
+        ruf(proxy, "/v1/models", method="GET", body=None)
+    threading.Event().wait(0.5)
+
+    fehler = capsys.readouterr().err
+    assert "ValueError: etwas ging schief" in fehler
+    assert "Traceback" not in fehler

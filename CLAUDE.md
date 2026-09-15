@@ -111,4 +111,6 @@ Was Abdeckung braucht:
 - Eine zweite Instanz bekommt den Port nicht.
 - `Transfer-Encoding` ergibt 411, eine unlesbare Länge 400. Nach jeder
   Ablehnung ist die Verbindung zu, ungelesene Bytes werden keine Anfrage.
+- Ein Client, der die Verbindung zurücksetzt, hinterlässt nichts im Fenster;
+  ein echter Fehler eine Zeile, keinen Traceback.
 - Kein Log-Eintrag enthält ein Token.

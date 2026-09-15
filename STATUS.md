@@ -4,11 +4,21 @@ Stand: 15. September 2026. Diese Datei ist der Einstieg für eine neue Sitzung.
 
 ## Was läuft
 
-Der Proxy ist vollständig und getestet. 38 Tests grün, Ruff sauber.
+Der Proxy ist vollständig und getestet. 40 Tests grün, Ruff sauber.
 
 Ein Lauf gegen einen Stub-Endpunkt funktioniert von außen: Anmeldung
 übersprungen bei gültigem Token, Modelle erkannt, Anfragen durchgereicht,
 Streaming gestückelt, 403 ohne Key und mit `Origin`.
+
+**Gegen LM Studio gelaufen** (15. September 2026, lokal, festes Token ohne
+`exp`): Modelle beim Start erkannt, `python -m botproxy status` gegen die
+laufende Instanz meldet `ok`, 403 ohne Key, Streaming Stück für Stück (154
+Ereignisse, Median 50 ms Abstand), unbekannte Felder in beide Richtungen
+durchgereicht — auch `reasoning_content` —, 411 für chunked, und nach einem
+Abbruch mitten im Stream bedient botproxy weiter. Anmeldung und 401 prüft
+LM Studio nicht; dafür bleiben die Stubs. Einen Fehler des Endpunkts gibt
+LM Studio nicht her: einen unbekannten Modellnamen beantwortet es mit dem
+geladenen Modell.
 
 ```sh
 python -m venv .venv && . .venv/bin/activate
@@ -84,6 +94,13 @@ zweite Binden auch vorher schon; der Test
 `test_zweite_instanz_bekommt_den_port_nicht` beweist die Korrektur also erst
 unter Windows.
 
+**Ein aufgelegter Client ist keine Meldung wert.** Beim Lauf gegen LM Studio
+stand für jede zurückgesetzte Keep-alive-Verbindung ein voller Traceback im
+Fenster — `socketserver` druckt ihn von sich aus, und Editor-Clients schließen
+ihre ruhenden Verbindungen ständig. `Proxy.handle_error` schweigt jetzt bei
+`ConnectionResetError`, `ConnectionAbortedError` (so meldet Windows es) und
+`BrokenPipeError`; alles andere wird eine Zeile mit Typ und Meldung.
+
 **Kein `chmod`.** Unter Windows schaltet es nur den Schreibschutz. Token und
 Key sind geschützt, weil sie unter `%USERPROFILE%` liegen und dessen ACL erben.
 
@@ -146,8 +163,9 @@ demselben `oauth.py` im selben Zielnetz:
 (dann ist der Code im Browser schon eingetragen) und wie er sich bei
 `slow_down` verhält.
 
-**Nicht getestet:** `__main__.status` gegen eine laufende Instanz, und der
-Start mit Platzhalterwerten (`config.validate`).
+**Nicht automatisch getestet:** `__main__.status` gegen eine laufende Instanz
+(von Hand gegen LM Studio geprüft) und der Start mit Platzhalterwerten
+(`config.validate`).
 
 **Kein Log.** Absichtlich: Header tragen das Token, Bodies den Quelltext des
 Benutzers. Falls Diagnose nötig wird, muss vorher feststehen, was nicht
