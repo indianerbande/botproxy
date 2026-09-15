@@ -20,6 +20,37 @@ LM Studio nicht; dafür bleiben die Stubs. Einen Fehler des Endpunkts gibt
 LM Studio nicht her: einen unbekannten Modellnamen beantwortet es mit dem
 geladenen Modell.
 
+**Mit Kilo Code als Client** (gleicher Abend, `qwen/qwen3.8-27b` in LM Studio):
+eine Agentensitzung über ein fremdes Repository, mindestens sieben
+Chat-Anfragen hintereinander mit Werkzeugaufrufen (Dateien lesen,
+Shell-Befehle), dazwischen fast drei Stunden Pause bis zu einer Freigabe —
+alles durch, kein Fehler im Fenster. Dabei aufgefallen, beides Kilo, nicht
+botproxy:
+
+- Einen Anbieter einzutragen stellt den Chat nicht auf ihn um. Das Modell muss
+  im Chat eigens gewählt werden, sonst geht die Frage an Kilos eigenen Dienst.
+  Ein gleich aussehender Anbieter `lmstudio` übergeht botproxy.
+- Kilo schickt `max_tokens: 32000`. Gegen einen Endpunkt mit 32K Kontext
+  braucht es in `kilo.jsonc` eine Grenze unter dem Anbieter; ein `models` auf
+  oberster Ebene lehnt Kilo 7.x als ungültig ab und startet dann gar nicht.
+
+**Gemessen: botproxy kostet rund eine Millisekunde, die Zeit gehört dem
+Modell.** Dieselben Anfragen direkt an LM Studio und über botproxy:
+
+| Anfrage | direkt | über botproxy |
+|---|---|---|
+| `GET /v1/models`, 30×, Median | 0,8 ms | 2,1 ms |
+| Chat, kurzer Prompt, gestreamt, 3×, erstes Byte (Median) | 925 ms | 881 ms |
+| dasselbe, gesamt (Median) | 3.507 ms | 3.509 ms |
+
+Beim Chat liegt der Unterschied im Rauschen. Wo die Wartezeit mit Kilo
+herkommt, zeigt das Log von LM Studio: Das Modell liest auf dem Mac rund 100
+Token je Sekunde ein und schreibt rund 20. Kilos erste Anfrage bringt 16.847
+Token Systemprompt mit — knapp drei Minuten bis zum ersten Wort. Die Eingabe
+wuchs mit jeder gelesenen Datei bis rund 54.000 Token; sobald LM Studio den
+Verlauf zwischenspeichert, sind nur noch die neuen paar hundert Token
+einzulesen, dann in Sekunden.
+
 ```sh
 python -m venv .venv && . .venv/bin/activate
 pip install -r requirements.txt -r requirements-dev.txt
