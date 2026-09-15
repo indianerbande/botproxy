@@ -12,21 +12,7 @@ import urllib.request
 
 import pytest
 
-from botproxy import config, server
-
-
-@pytest.fixture
-def proxy(signed_in, monkeypatch):
-    """A real proxy on a free port, with a known local key."""
-    monkeypatch.setattr(config, "PORT", 0)
-    instance = server.Proxy(signed_in, "geheim-fuer-den-test")
-    monkeypatch.setattr(config, "PORT", instance.server_address[1])
-    thread = threading.Thread(target=instance.serve_forever, daemon=True)
-    thread.start()
-    yield instance
-    instance.shutdown()
-    instance.forwarder.close()
-    instance.server_close()
+from botproxy import server
 
 
 def ruf(instance, pfad, *, key=None, extra=None, method="POST", body=b"{}"):

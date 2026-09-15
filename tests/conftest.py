@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import threading
+
 import pytest
 
-from botproxy import config, tokens
+from botproxy import config, server, tokens
 from tests.stubs import Idp, Upstream, make_jwt
 
 
@@ -69,3 +71,17 @@ def expiring(settings, idp):
     manager = tokens.Manager()
     yield manager
     manager.stop()
+
+
+@pytest.fixture
+def proxy(signed_in, monkeypatch):
+    """A real proxy on a free port, with a known local key."""
+    monkeypatch.setattr(config, "PORT", 0)
+    instance = server.Proxy(signed_in, "geheim-fuer-den-test")
+    monkeypatch.setattr(config, "PORT", instance.server_address[1])
+    thread = threading.Thread(target=instance.serve_forever, daemon=True)
+    thread.start()
+    yield instance
+    instance.shutdown()
+    instance.forwarder.close()
+    instance.server_close()

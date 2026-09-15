@@ -1,7 +1,8 @@
-"""Der Port, die Routen, die Statuszeile.
+"""Der Port, die Routen, und was davon sichtbar wird.
 
-The only module that writes to the screen. Everything else reports through
-return values and exceptions; here it is decided what becomes visible.
+Here it is decided what becomes visible. Everything else reports through
+return values, exceptions and `say`; `screen.py` only draws what this module
+hands it — traffic figures from the monitor, never a header value or a body.
 """
 
 from __future__ import annotations
@@ -10,9 +11,10 @@ import hmac
 import json
 import socket
 import sys
+from collections.abc import Callable
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-from botproxy import config, forward, tokens
+from botproxy import config, forward, monitor, screen, tokens
 from botproxy.errors import UpstreamError
 
 MAX_BODY_BYTES = 64 * 1024 * 1024
@@ -22,7 +24,15 @@ MAX_BODY_BYTES = 64 * 1024 * 1024
 _CLIENT_GONE = (ConnectionResetError, ConnectionAbortedError, BrokenPipeError)
 
 
+# Where `say` goes while the full-screen display owns the window. Printing
+# then would tear through the drawn areas.
+_sink: Callable[[str], None] | None = None
+
+
 def say(message: str) -> None:
+    if _sink is not None:
+        _sink(message)
+        return
     print(message, file=sys.stderr, flush=True)
 
 
@@ -43,6 +53,8 @@ class Handler(BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
     server_version = "botproxy"
     sys_version = ""
+    # The monitor's number for the request in progress on this connection.
+    _rid: int | None = None
 
     # --- Eingang -------------------------------------------------------------
 
@@ -97,6 +109,9 @@ class Handler(BaseHTTPRequestHandler):
         connection those unread bytes would be taken for the next request — so
         the connection closes instead of guessing where the body ends.
         """
+        if self._rid is not None:
+            self.server.monitor.rejected(self._rid, status, code)
+            self._rid = None
         body = _error_body(message, code)
         self.send_response(status)
         self.send_header("Content-Type", "application/json")
@@ -120,6 +135,22 @@ class Handler(BaseHTTPRequestHandler):
     # --- Weiterreichen -------------------------------------------------------
 
     def _relay(self, method: str) -> None:
+        declared = self.headers.get("Content-Length", "").strip()
+        self._rid = self.server.monitor.request(
+            method,
+            self.path,
+            int(declared) if declared.isascii() and declared.isdigit() else None,
+        )
+        try:
+            self._relay_checked(method)
+        finally:
+            # Left set only when something raised on the way: without this the
+            # answer would say "wartet" until the window is closed.
+            if self._rid is not None:
+                self.server.monitor.aborted(self._rid, "Fehler")
+                self._rid = None
+
+    def _relay_checked(self, method: str) -> None:
         if not self.path.startswith("/v1"):
             self._fail(404, f"Unbekannter Pfad: {self.path}", "not_found")
             return
@@ -195,6 +226,11 @@ class Handler(BaseHTTPRequestHandler):
             self._fail(500, f"botproxy: {exc}", "internal")
             return
 
+        watch = self.server.monitor
+        rid, self._rid = self._rid, None
+        if rid is not None:
+            watch.answering(rid, relayed.status)
+        outcome = "Fehler"
         try:
             self.send_response(relayed.status)
             for key, value in relayed.headers:
@@ -208,13 +244,21 @@ class Handler(BaseHTTPRequestHandler):
                     continue
                 self.wfile.write(b"%x\r\n%s\r\n" % (len(chunk), chunk))
                 self.wfile.flush()
+                if rid is not None:
+                    watch.chunk(rid, len(chunk))
             self.wfile.write(b"0\r\n\r\n")
             self.wfile.flush()
+            outcome = ""
         except _CLIENT_GONE:
             # The client hung up mid-answer. Its right; nothing to report.
-            pass
+            outcome = "Client weg"
         finally:
             relayed.close()
+            if rid is not None:
+                if outcome:
+                    watch.aborted(rid, outcome)
+                else:
+                    watch.finished(rid)
 
 
 class Proxy(ThreadingHTTPServer):
@@ -233,6 +277,7 @@ class Proxy(ThreadingHTTPServer):
         self.local_key = local_key
         self.forwarder = forward.Forwarder(manager)
         self.upstream_state = "ungeprüft"
+        self.monitor = monitor.Monitor()
 
     def server_bind(self) -> None:
         """Claim the port exclusively, so nobody can bind it alongside us.
@@ -266,7 +311,8 @@ class Proxy(ThreadingHTTPServer):
         try:
             relayed = self.forwarder.send("GET", "/v1/models", "", [], b"")
         except Exception as exc:  # noqa: BLE001
-            self.upstream_state = f"nicht erreichbar ({exc})"
+            grund = str(exc).removeprefix("Endpunkt nicht erreichbar: ")
+            self.upstream_state = f"nicht erreichbar ({grund})"
             return
         try:
             payload = b"".join(relayed.body)
@@ -285,6 +331,7 @@ class Proxy(ThreadingHTTPServer):
 
 def serve() -> int:
     """Start up, report, then bedienen. Returns the process exit code."""
+    global _sink
     config.validate()
     manager = tokens.Manager(notify=say)
     key = config.local_key()
@@ -318,18 +365,45 @@ def serve() -> int:
 
     proxy.probe()
     manager.start_watchdog()
+    display = screen.Screen(proxy.monitor, lambda: _header(manager, proxy, key))
+    grund = display.start()
+    if grund is None:
+        _sink = proxy.monitor.log
+        say(f"botproxy aktiv, Endpunkt {proxy.upstream_state}")
+    else:
+        _plain_banner(manager, proxy, key)
+        say(f"Einfache Ausgabe ohne Bereiche, weil {grund}.")
+        say("")
+    try:
+        proxy.serve_forever()
+    except KeyboardInterrupt:
+        pass
+    finally:
+        display.stop()
+        _sink = None
+        manager.stop()
+        proxy.forwarder.close()
+    say("Beendet.")
+    return 0
+
+
+def _header(manager: tokens.Manager, proxy: Proxy, key: str) -> screen.Header:
+    base = f"http://127.0.0.1:{config.PORT}"
+    if manager.snapshot()["zustand"] == "anmeldung_läuft":
+        token = "Anmeldung läuft — Link und Code unter Status"
+    else:
+        token = f"Token {manager.describe_validity()}"
+    return screen.Header(
+        route=f"{base}  →  {config.BASE_URL}",
+        state=f"{token} · Endpunkt {proxy.upstream_state}",
+        client=f"Client: Base URL {base}/v1 · API-Key {key}",
+    )
+
+
+def _plain_banner(manager: tokens.Manager, proxy: Proxy, key: str) -> None:
     say("")
     say(f"botproxy aktiv auf http://127.0.0.1:{config.PORT}")
     say(f"Endpunkt {proxy.upstream_state} · Token {manager.describe_validity()}")
     say("")
     say(f"Client — Base URL: http://127.0.0.1:{config.PORT}/v1")
     say(f"Client — API-Key:  {key}")
-    say("")
-    try:
-        proxy.serve_forever()
-    except KeyboardInterrupt:
-        say("Beendet.")
-    finally:
-        manager.stop()
-        proxy.forwarder.close()
-    return 0

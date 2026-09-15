@@ -83,6 +83,23 @@ gesamten Kontext des Endpunkts für die Antwort reserviert, bleibt nichts für
 die Frage übrig und jede Anfrage scheitert. Diese Grenze gehört in die
 Konfiguration des Clients, nicht hierher.
 
+## Das Fenster
+
+In einem Konsolenfenster zeigt botproxy vier feste Bereiche:
+
+- **Kopf:** Adresse, Ziel, Zähler, Zustand des Tokens und des Endpunkts, dazu
+  Base URL und API-Key für den Client.
+- **Anfragen** (links): Uhrzeit, Nummer, Methode, Pfad und Größe.
+- **Antworten** (rechts): zur selben Nummer der Status und der Verlauf —
+  `wartet` (das Modell liest noch ein), `läuft` mit Durchsatz, `fertig` mit
+  Dauer, Größe und Zeit bis zum ersten Stück.
+- **Status** (unten): was botproxy selbst tut — Token erneuert, Anmeldung
+  nötig samt Link, Fehler.
+
+Inhalte von Anfragen und Antworten erscheinen nie, nur ihre Größen und Zeiten.
+Wird die Ausgabe umgeleitet, schreibt botproxy stattdessen einfache Zeilen.
+Beenden mit `Ctrl-C`.
+
 ## Zustand prüfen
 
 ```sh

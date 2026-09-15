@@ -66,7 +66,9 @@ botproxy/
   store.py      Geheimnisse atomar auf die Platte, JWT-Ablauf lesen
   tokens.py     Zustand, Sperre, Wecker
   forward.py    Weiterreichen, kennt nur httpx
-  server.py     Port, Routen, Statuszeile — das einzige Modul, das ausgibt
+  server.py     Port, Routen — entscheidet, was sichtbar wird
+  monitor.py    Verkehrsdaten für die Anzeige: Größen, Zeiten, Status
+  screen.py     Das Fenster in vier Bereichen, zeichnet nur, was es bekommt
 ```
 
 ## Konventionen
@@ -79,6 +81,9 @@ botproxy/
   schickt. Alles, was botproxy über den Inhalt zu wissen glaubt, ist eines
   Tages falsch — Clients ändern ihr Format, ohne zu fragen.
 - Keine Geheimnisse ins Log. Weder Token noch Bodies, unter keinem Schalter.
+- **Die Anzeige zeigt Verkehrsdaten, nie Inhalt.** Beim Monitor kommen Methode,
+  Pfad ohne Query, Größen, Zeiten und Statuscodes an — kein Header-Wert, kein
+  Body. Was er nicht bekommt, kann er nicht zeigen.
 
 ## Was Endpunkt und Provider tatsächlich tun
 
@@ -133,3 +138,5 @@ Was Abdeckung braucht:
 - Die unveränderte `start-botproxy.cmd.example` startet nicht; jeder
   Platzhalter und jeder fehlende Wert wird mit Variablennamen gemeldet.
 - Kein Log-Eintrag enthält ein Token.
+- Die Anzeige passt genau ins Fenster, ordnet Anfrage und Antwort einander zu,
+  und in ihr steht weder Token noch Key noch Body.

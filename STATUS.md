@@ -4,7 +4,7 @@ Stand: 15. September 2026. Diese Datei ist der Einstieg für eine neue Sitzung.
 
 ## Was läuft
 
-Der Proxy ist vollständig und getestet. 56 Tests grün, Ruff sauber.
+Der Proxy ist vollständig und getestet. 79 Tests grün, Ruff sauber.
 
 Ein Lauf gegen einen Stub-Endpunkt funktioniert von außen: Anmeldung
 übersprungen bei gültigem Token, Modelle erkannt, Anfragen durchgereicht,
@@ -54,11 +54,11 @@ einzulesen, dann in Sekunden.
 ```sh
 python -m venv .venv && . .venv/bin/activate
 pip install -r requirements.txt -r requirements-dev.txt
-pytest                      # ~70 s, startet eigene Stubs auf freien Ports
+pytest                      # ~100 s, startet eigene Stubs auf freien Ports
 ruff check . && ruff format .
 ```
 
-Ein vollständiger `pytest`-Lauf dauert gut eine Minute; einzelne Dateien
+Ein vollständiger `pytest`-Lauf dauert gut anderthalb Minuten; einzelne Dateien
 laufen in ein bis zwei Sekunden.
 
 ## Module
@@ -154,6 +154,22 @@ die Dateien trotzdem sichtbar; nur das ZIP ist schlanker. Skripte stehen nicht
 darin; `tests/test_verteilung.py` hält das fest. Entpacken über eine
 alte Version löscht nichts — beim Update in einen frischen Ordner.
 
+**Vollbildanzeige mit vier Bereichen, ohne Inhalt.** Kopf, Anfragen links,
+Antworten rechts, Status unten. `monitor.py` bekommt nur Methode, Pfad ohne
+Query, Größen, Zeiten und Statuscodes; ein Body kommt dort nie an, geparst wird
+nichts. `screen.py` zeichnet mit ANSI-Steuerzeichen, unter Windows über
+`ctypes` eingeschaltet — kein `curses`, keine Bibliothek. `render` ist eine
+reine Funktion und ohne Terminal getestet. Die Antwortzeile zeigt `wartet`,
+solange das erste Stück fehlt: bei einem Sprachmodell die Zeit, in der es den
+Prompt einliest. Ohne Konsole (umgeleitete Ausgabe) bleibt es bei einfachen
+Zeilen, und das Fenster sagt warum.
+
+Geprüft auf Windows 11 in einer Konsole über `ssh -t` (ConPTY): Rahmen,
+Umlaute und Umbruch stimmen, `Ctrl-C` gibt das Fenster zurück. Die komplette
+Testsuite läuft dort durch; die Verteilungstests überspringen sich ohne
+Git-Verzeichnis. Nicht gesehen: ein per Doppelklick geöffnetes
+Konsolenfenster.
+
 **Kein `chmod`.** Unter Windows schaltet es nur den Schreibschutz. Token und
 Key sind geschützt, weil sie unter `%USERPROFILE%` liegen und dessen ACL erben.
 
@@ -192,6 +208,12 @@ am Key vorbei, aber eine Anfrage, die niemand so gestellt hat. Geprüft in
 
 ## Offen
 
+**Die Vollbildanzeige im Doppelklick-Fenster ansehen.** Geprüft ist sie nur
+über `ssh -t` (ConPTY). Ein per Doppelklick auf `start-botproxy.cmd`
+geöffnetes Konsolenfenster kann sich bei Farben, Rahmenzeichen und beim
+Verkleinern anders verhalten. Dabei auch mit echtem Verkehr: Anfrage links,
+`wartet` → `läuft` → `fertig` rechts.
+
 **botproxy selbst lief noch nie gegen einen echten Endpunkt.** Alles bisher
 gegen Stubs. Der erste echte Lauf braucht `BOTPROXY_BASE_URL`,
 `BOTPROXY_AUTHORITY` und `BOTPROXY_CLIENT_ID`.
@@ -223,9 +245,9 @@ herunterladen und nachsehen.
 **Nicht automatisch getestet:** `__main__.status` gegen eine laufende Instanz
 (von Hand gegen LM Studio geprüft).
 
-**Kein Log.** Absichtlich: Header tragen das Token, Bodies den Quelltext des
-Benutzers. Falls Diagnose nötig wird, muss vorher feststehen, was nicht
-hineindarf.
+**Kein Log in eine Datei.** Absichtlich: Header tragen das Token, Bodies den
+Quelltext des Benutzers. Die Anzeige im Fenster zeigt deshalb nur
+Verkehrsdaten.
 
 **Der Pre-commit-Hook muss je Klon eingeschaltet werden.** `hooks/pre-commit`
 liegt im Repo, läuft aber erst nach `git config core.hooksPath hooks` — die
