@@ -1,0 +1,22 @@
+# Was der ZIP-Download von GitHub enthaelt.
+#
+# botproxy wird nur als ZIP bezogen und unter Windows mit
+# "pip install -r requirements.txt" und "python -m botproxy" betrieben.
+# GitHub baut das ZIP mit git archive, und das laesst alles weg, was hier
+# export-ignore traegt. Uebrig bleiben: botproxy/, requirements.txt,
+# start-botproxy.cmd.example und README.md.
+#
+# Wirksam ist, was im heruntergeladenen Stand steht, nicht was lokal liegt.
+# Pruefen: git archive --format=zip HEAD | unzip -l /dev/stdin
+
+# Entwicklung
+/tests/                 export-ignore
+/hooks/                 export-ignore
+/requirements-dev.txt   export-ignore
+/pyproject.toml         export-ignore
+/CLAUDE.md              export-ignore
+/STATUS.md              export-ignore
+
+# Git selbst
+/.gitignore             export-ignore
+/.gitattributes         export-ignore

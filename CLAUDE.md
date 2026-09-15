@@ -33,6 +33,19 @@ ruff check . && ruff format .
 `requirements.txt` ist die einzige Wahrheit über Abhängigkeiten und wird von
 Hand gepflegt — die Liste ist zwei Zeilen lang.
 
+## Verteilung
+
+botproxy wird nur als ZIP von GitHub bezogen, nie geklont. Das ZIP enthält, was
+der Betrieb unter Windows braucht: `botproxy/`, `requirements.txt`,
+`start-botproxy.cmd.example`, `README.md`. Alles andere trägt in
+`.gitattributes` `export-ignore`.
+
+**Eine neue Datei, die der Betrieb nicht braucht, gehört dort eingetragen.**
+Sonst liegt sie ab dem nächsten Download auf dem Zielrechner. Prüfen:
+`git archive --format=zip HEAD | unzip -l /dev/stdin`.
+
+Nichts im ausgelieferten Teil darf auf eine ausgeschlossene Datei verweisen.
+
 ## Architektur
 
 Zwei Hälften, die sich an genau einer Stelle berühren: `forward.py` ruft

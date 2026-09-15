@@ -114,6 +114,14 @@ Ergebnis — aus `https://host/pfad/v1/` wurde `…/v1//chat/completions`.
 `config.py` kürzt jetzt `BASE_URL` und `AUTHORITY` direkt; `require_url`
 prüft nur noch. So gilt es auch dort, wo `validate` nicht läuft.
 
+**Das ZIP enthält nur den Betrieb.** Bezogen wird ausschließlich über „Download
+ZIP“ von GitHub, und das baut `git archive` — `export-ignore` in
+`.gitattributes` hält `tests/`, `hooks/`, `pyproject.toml`,
+`requirements-dev.txt`, `CLAUDE.md` und `STATUS.md` heraus. Lokal nachgestellt:
+15 Einträge, aus dem entpackten ZIP installiert und gestartet. Auf GitHub bleiben
+die Dateien trotzdem sichtbar; nur das ZIP ist schlanker. Entpacken über eine
+alte Version löscht nichts — beim Update in einen frischen Ordner.
+
 **Kein `chmod`.** Unter Windows schaltet es nur den Schreibschutz. Token und
 Key sind geschützt, weil sie unter `%USERPROFILE%` liegen und dessen ACL erben.
 
@@ -175,6 +183,10 @@ demselben `oauth.py` im selben Zielnetz:
 **Weiterhin ungeprüft:** ob der Provider `verification_uri_complete` liefert
 (dann ist der Code im Browser schon eingetragen) und wie er sich bei
 `slow_down` verhält.
+
+**Der echte GitHub-Download ist ungeprüft.** Dass GitHub `export-ignore`
+beachtet, ist nur lokal mit `git archive` nachgestellt. Nach dem Push einmal
+herunterladen und nachsehen.
 
 **Nicht automatisch getestet:** `__main__.status` gegen eine laufende Instanz
 (von Hand gegen LM Studio geprüft).
