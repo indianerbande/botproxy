@@ -97,6 +97,8 @@ Was Abdeckung braucht:
 - Ein dauerhafter 401 löst eine Erneuerung aus, nicht eine pro Anfrage.
 - Zehn gleichzeitige Anfragen auf abgelaufenem Token lösen eine Erneuerung
   aus, nicht zehn. Dasselbe für die Anmeldung.
+- Ein unbestätigt abgelaufener Code: der Wecker startet keine neue Anmeldung,
+  erst die nächste Anfrage. Beim Start endet das Warten mit dem Code.
 - Ein rotiertes Refresh-Token wird gespeichert, das alte verschwindet.
 - Ein fremder Fingerprint verhindert die Erneuerung.
 - `Origin`, `Sec-Fetch-Site` und ein falscher API-Key ergeben 403.

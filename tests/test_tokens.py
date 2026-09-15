@@ -4,6 +4,9 @@ from __future__ import annotations
 
 import contextlib
 import threading
+import time
+
+import pytest
 
 from botproxy import config, store, tokens
 from tests.stubs import make_jwt
@@ -114,6 +117,55 @@ def test_anmeldung_laeuft_nur_einmal_trotz_vieler_anfragen(expiring, idp):
     assert idp.device_requests == 1
 
 
+def test_warten_endet_mit_dem_code_nicht_mit_einer_frist(expiring, idp):
+    """An unconfirmed code must end the wait when it runs out — not minutes later."""
+    idp.refresh_dead = True
+    idp.pending_polls = 1000
+    idp.code_ttl = 2
+
+    with contextlib.suppress(tokens.LoginRequired):
+        expiring.force_refresh()
+    start = time.monotonic()
+    assert expiring.wait_for_login() is False
+    assert time.monotonic() - start < 6
+
+
+def test_wecker_startet_nach_unbestaetigtem_code_keine_neue_anmeldung(
+    settings, idp, monkeypatch
+):
+    """Nobody confirmed, so nobody is there. One browser tab, not one per code."""
+    geoeffnet: list[str] = []
+    monkeypatch.setattr(tokens.webbrowser, "open", geoeffnet.append)
+    access = make_jwt(-10)
+    store.write_secret(config.TOKEN_FILE, access)
+    store.write_refresh(config.REFRESH_FILE, "refresh-tot", access)
+    idp.refresh_dead = True
+    idp.pending_polls = 1000
+    idp.code_ttl = 2
+
+    manager = tokens.Manager()
+    try:
+        manager.start_watchdog()
+        for _ in range(50):
+            if idp.device_requests:
+                break
+            threading.Event().wait(0.1)
+        assert idp.device_requests == 1
+        assert manager.wait_for_login() is False
+
+        # Several watchdog rounds (one per second here) with nothing to show.
+        threading.Event().wait(3.5)
+        assert idp.device_requests == 1
+        assert len(geoeffnet) == 1
+
+        # A request means someone is at the client again: that one may ask.
+        with pytest.raises(tokens.LoginRequired):
+            manager.ensure_fresh()
+        assert idp.device_requests == 2
+    finally:
+        manager.stop()
+
+
 def test_anmeldung_endet_mit_gueltigem_token(settings, idp):
     """The full round: no token, device code, confirmation, usable token."""
     idp.pending_polls = 1
@@ -123,11 +175,7 @@ def test_anmeldung_endet_mit_gueltigem_token(settings, idp):
         with contextlib.suppress(tokens.LoginRequired):
             manager.ensure_fresh()
 
-        for _ in range(60):
-            if manager.snapshot()["zustand"] == "ok":
-                break
-            threading.Event().wait(0.2)
-
+        assert manager.wait_for_login() is True
         assert manager.snapshot()["zustand"] == "ok"
         token = manager.ensure_fresh()
         assert store.jwt_expiry(token) is not None

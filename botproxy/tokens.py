@@ -71,6 +71,13 @@ class Manager:
         self._issued_at: datetime | None = None
         self._refusal_reported = False
         self._pending: PendingLogin | None = None
+        # Set whenever no sign-in is running. Cleared when one starts, set again
+        # when it ends — however it ends. `wait_for_login` sleeps on it.
+        self._login_over = threading.Event()
+        self._login_over.set()
+        # A sign-in ran out without anyone confirming. Nobody is at the screen,
+        # so the watchdog leaves it at that; the next request starts a new one.
+        self._login_unanswered = False
         self._stop = threading.Event()
         self._watchdog: threading.Thread | None = None
         self._load_from_disk()
@@ -138,6 +145,8 @@ class Manager:
                 raise LoginRequired(self._pending)
             if self._still_good():
                 return self._access  # type: ignore[return-value]
+            # A request means someone is at the client — worth asking again.
+            self._login_unanswered = False
             self._renew_or_login()
             if self._pending is not None:
                 raise LoginRequired(self._pending)
@@ -221,6 +230,7 @@ class Manager:
         self._expires_at = store.jwt_expiry(access)
         self._issued_at = datetime.now(UTC)
         self._refusal_reported = False
+        self._login_unanswered = False
         self._pending = None
 
     def _begin_login(self) -> None:
@@ -238,6 +248,7 @@ class Manager:
             verification_uri=code.verification_uri,
             verification_uri_complete=code.verification_uri_complete,
         )
+        self._login_over.clear()
         self._notify(
             f"Anmeldung nötig — öffne {self._pending.link} "
             f"und bestätige den Code {code.user_code}"
@@ -251,10 +262,17 @@ class Manager:
         thread.start()
 
     def _await_login(self, code: oauth.DeviceCode) -> None:
+        """Poll, and however that ends, report the sign-in as over."""
+        try:
+            self._poll_login(code)
+        finally:
+            self._login_over.set()
+
+    def _poll_login(self, code: oauth.DeviceCode) -> None:
         """Poll until the user confirms, the code expires, or we give up."""
         interval = code.interval
         deadline = datetime.now(UTC) + timedelta(seconds=code.expires_in)
-        while not self._stop.is_set() and datetime.now(UTC) < deadline:
+        while datetime.now(UTC) < deadline:
             if self._stop.wait(interval):
                 return
             try:
@@ -265,9 +283,7 @@ class Manager:
                 interval += oauth.SLOW_DOWN_STEP
                 continue
             except AuthError as exc:
-                with self._lock:
-                    self._pending = None
-                self._notify(f"Anmeldung abgebrochen: {exc}")
+                self._give_up(f"Anmeldung abgebrochen: {exc}")
                 return
             if tokens is None:
                 continue
@@ -275,9 +291,34 @@ class Manager:
                 self._adopt(tokens.access, tokens.refresh)
             self._notify(f"Angemeldet, {self.describe_validity()}")
             return
+        self._give_up("Der Anmeldecode ist abgelaufen, bevor er bestätigt wurde.")
+
+    def _give_up(self, reason: str) -> None:
+        """End a sign-in that nobody completed, and do not start the next one.
+
+        Starting over right away would open a browser tab every quarter of an
+        hour for as long as nobody is there — a whole night's worth by morning.
+        """
         with self._lock:
             self._pending = None
-        self._notify("Der Anmeldecode ist abgelaufen, bevor er bestätigt wurde.")
+            self._login_unanswered = True
+            serving = self._watchdog is not None
+        if serving:
+            reason += " Die nächste Anfrage startet eine neue Anmeldung."
+        self._notify(reason)
+
+    def wait_for_login(self) -> bool:
+        """Block until a running sign-in is over. True if it left a usable token.
+
+        Returns at once when no sign-in is running. The wait is cut into short
+        slices only so that Ctrl-C gets through on Windows, where an unbounded
+        wait on a lock does not see it; the wake-up itself comes from the
+        sign-in thread, not from looking.
+        """
+        while not self._login_over.wait(0.5):
+            pass
+        with self._lock:
+            return self._still_good()
 
     # --- Wecker --------------------------------------------------------------
 
@@ -288,6 +329,9 @@ class Manager:
         failure. When the refresh token turns out to be dead, the sign-in
         starts here — which usually means it is over by the time anyone sits
         down at the IDE again.
+
+        It starts one, not one after another. A code that ran out unconfirmed
+        says nobody is there, and from then on only a request asks again.
         """
         if self._watchdog is not None:
             return
@@ -302,7 +346,7 @@ class Manager:
     def _tick(self) -> None:
         while not self._stop.wait(config.CHECK_INTERVAL_SECONDS):
             with self._lock:
-                if self._pending is not None:
+                if self._pending is not None or self._login_unanswered:
                     continue
                 if self._still_good(config.REFRESH_MARGIN_SECONDS):
                     continue

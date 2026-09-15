@@ -136,3 +136,20 @@ def test_streaming_geht_gestueckelt_durch_den_port(proxy, upstream):
         stuecke = [zeile for zeile in response if zeile.strip()]
 
     assert len(stuecke) == 3
+
+
+def test_start_ohne_bestaetigung_endet_mit_grund(idp, capsys):
+    """An unconfirmed code at startup ends the start when it runs out.
+
+    Not a quarter of an hour later, and not with a port that has no token
+    behind it — that would only show up later as a 503 in the client.
+    """
+    idp.pending_polls = 1000
+    idp.code_ttl = 2
+
+    assert server.serve() == 1
+
+    meldungen = capsys.readouterr().err
+    assert "abgelaufen" in meldungen
+    assert "startet botproxy nicht" in meldungen
+    assert "aktiv auf" not in meldungen

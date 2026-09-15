@@ -166,7 +166,7 @@ class IdpHandler(BaseHTTPRequestHandler):
                     "device_code": "dev-1",
                     "user_code": "ABCD-EFGH",
                     "verification_uri": f"{self.stub.base}/device",
-                    "expires_in": 60,
+                    "expires_in": self.stub.code_ttl,
                     "interval": 1,
                 },
             )
@@ -224,6 +224,8 @@ class Idp(Stub):
         # How many polls answer `authorization_pending` before the user
         # "confirms" — 0 means the very first poll succeeds.
         self.pending_polls = 0
+        # How long a device code stays valid. Short, to watch one run out.
+        self.code_ttl = 60
         self.refresh_dead = False
         self.rotate = True
         self.token_ttl = 3600.0

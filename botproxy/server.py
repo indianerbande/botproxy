@@ -9,7 +9,6 @@ from __future__ import annotations
 import hmac
 import json
 import sys
-import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 from botproxy import config, forward, tokens
@@ -226,7 +225,17 @@ def serve() -> int:
         manager.ensure_fresh()
     except tokens.LoginRequired:
         say("Warte auf die Bestätigung im Browser …")
-        _wait_for_login(manager)
+        try:
+            signed_in = manager.wait_for_login()
+        except KeyboardInterrupt:
+            manager.stop()
+            say("Beendet.")
+            return 0
+        if not signed_in:
+            # The reason is already on screen, from the sign-in itself. A port
+            # without a token would only turn it into a 503 in the client.
+            say("Ohne Anmeldung startet botproxy nicht. Zum Wiederholen neu starten.")
+            return 1
 
     try:
         proxy = Proxy(manager, key)
@@ -254,19 +263,3 @@ def serve() -> int:
         manager.stop()
         proxy.forwarder.close()
     return 0
-
-
-def _wait_for_login(manager: tokens.Manager, timeout: float = 900.0) -> None:
-    """Block until the sign-in thread has a token, or the code expires.
-
-    Only at startup. Once the port is open, a pending sign-in never blocks a
-    request — it answers with a link instead.
-    """
-    deadline = threading.Event()
-    waited = 0.0
-    while waited < timeout:
-        if deadline.wait(2.0):
-            return
-        waited += 2.0
-        if manager.snapshot()["zustand"] == "ok":
-            return

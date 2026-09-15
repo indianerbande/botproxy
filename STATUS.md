@@ -4,7 +4,7 @@ Stand: 15. September 2026. Diese Datei ist der Einstieg für eine neue Sitzung.
 
 ## Was läuft
 
-Der Proxy ist vollständig und getestet. 30 Tests grün, Ruff sauber.
+Der Proxy ist vollständig und getestet. 33 Tests grün, Ruff sauber.
 
 Ein Lauf gegen einen Stub-Endpunkt funktioniert von außen: Anmeldung
 übersprungen bei gültigem Token, Modelle erkannt, Anfragen durchgereicht,
@@ -13,11 +13,11 @@ Streaming gestückelt, 403 ohne Key und mit `Origin`.
 ```sh
 python -m venv .venv && . .venv/bin/activate
 pip install -r requirements.txt -r requirements-dev.txt
-pytest                      # ~31 s, startet eigene Stubs auf freien Ports
+pytest                      # ~45 s, startet eigene Stubs auf freien Ports
 ruff check . && ruff format .
 ```
 
-Ein vollständiger `pytest`-Lauf dauert eine halbe Minute; einzelne Dateien
+Ein vollständiger `pytest`-Lauf dauert eine Dreiviertelminute; einzelne Dateien
 laufen in ein bis zwei Sekunden.
 
 ## Module
@@ -80,6 +80,22 @@ behoben, weil die Zielumgebung Windows ist; `oauth.py` bekäme dafür denselben
 **Der Wecker ist der Normalfall.** Erneuert wird, bevor eine Anfrage auf ein
 abgelaufenes Token trifft, nicht weil eine darauf getroffen ist.
 
+**Der Wecker startet eine Anmeldung, nicht eine nach der anderen.** Läuft ein
+Code unbestätigt ab oder wird die Anmeldung abgelehnt, sitzt niemand davor.
+Bis dahin begann der nächste Durchlauf sofort die nächste, mit
+`webbrowser.open` — über Nacht ein Tab je Viertelstunde. Jetzt merkt sich der
+Manager das (`_login_unanswered`), der Wecker hält still, und erst eine Anfrage
+fragt wieder; im Fenster steht, dass es so ist. Geprüft in
+`test_wecker_startet_nach_unbestaetigtem_code_keine_neue_anmeldung`.
+
+**Beim Start wird auf das Ende der Anmeldung gewartet, nicht auf eine Frist.**
+`Manager.wait_for_login()` schläft auf einem Event, das der Anmelde-Thread
+setzt, wie immer er endet. Das Warten ist in halbe Sekunden zerteilt, nur damit
+Ctrl-C unter Windows durchkommt. Endet die Anmeldung ohne Token, beendet sich
+botproxy mit Code 1 und öffnet keinen Port — der Grund steht schon im Fenster,
+und ein Port ohne Token hieße nur 503 im Client. Vorher wartete
+`server._wait_for_login` bis zu 15 Minuten und öffnete danach trotzdem.
+
 ## Offen
 
 **botproxy selbst lief noch nie gegen einen echten Endpunkt.** Alles bisher
@@ -105,18 +121,6 @@ demselben `oauth.py` im selben Zielnetz:
 **Weiterhin ungeprüft:** ob der Provider `verification_uri_complete` liefert
 (dann ist der Code im Browser schon eingetragen) und wie er sich bei
 `slow_down` verhält.
-
-**Nachts neue Browser-Tabs.** Ist das Refresh-Token tot, startet der Wecker
-eine Anmeldung. Läuft der Code unbestätigt ab, beginnt beim nächsten Durchlauf
-die nächste — mit `webbrowser.open`, also etwa ein Tab je Viertelstunde. Nicht
-behoben.
-
-**`_wait_for_login` bemerkt eine abgebrochene Anmeldung nicht** und wartet die
-vollen 15 Minuten, danach öffnet der Port ohne Token und ohne eigene Meldung.
-Gehört zur Überarbeitung der Stelle unten.
-
-**`_wait_for_login` in `server.py`** pollt alle zwei Sekunden statt sich
-wecken zu lassen. Funktioniert, ist aber die unschönste Stelle im Code.
 
 **Nicht getestet:** `__main__.status` gegen eine laufende Instanz, und der
 Start mit Platzhalterwerten (`config.validate`).
