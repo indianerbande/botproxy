@@ -9,6 +9,7 @@ import pytest
 
 from botproxy import forward
 from botproxy.errors import UpstreamError
+from tests.stubs import make_jwt
 
 
 def test_pfad_query_und_body_kommen_unveraendert_an(signed_in, upstream):
@@ -132,6 +133,49 @@ def test_zweites_401_wird_durchgereicht(signed_in, upstream):
 
     assert relayed.status == 401
     assert len(upstream.seen) == 2
+
+
+def test_dauerhaftes_401_erneuert_nicht_bei_jeder_anfrage(settings, upstream, idp):
+    """An issuer the endpoint does not accept refuses every token alike.
+
+    Renewing on each refusal would ask the provider once per request and change
+    nothing. One renewal, then the refusal goes through — and is said once.
+    """
+    from botproxy import config, store, tokens
+
+    access = make_jwt(3600)
+    store.write_secret(config.TOKEN_FILE, access)
+    store.write_refresh(config.REFRESH_FILE, "refresh-fest", access)
+    idp.rotate = False
+    upstream.reject_next = 100
+    meldungen: list[str] = []
+    manager = tokens.Manager(notify=meldungen.append)
+
+    f = forward.Forwarder(manager)
+    for _ in range(5):
+        relayed = f.send("POST", "/v1/chat/completions", "", [], b"{}")
+        relayed.close()
+        assert relayed.status == 401
+    f.close()
+    manager.stop()
+
+    assert idp.refreshes == 1
+    assert sum("eben ausgestelltes Token" in m for m in meldungen) == 1
+
+
+def test_nach_der_frist_wird_wieder_erneuert(signed_in, upstream, idp, monkeypatch):
+    """The grace period is what holds renewal back — not a permanent verdict."""
+    from botproxy import tokens
+
+    monkeypatch.setattr(tokens, "FRESHLY_ISSUED_SECONDS", 0)
+    upstream.reject_next = 100
+
+    f = forward.Forwarder(signed_in)
+    for _ in range(3):
+        f.send("POST", "/v1/chat/completions", "", [], b"{}").close()
+    f.close()
+
+    assert idp.refreshes == 3
 
 
 def test_unerreichbarer_endpunkt_wird_benannt(signed_in, monkeypatch):

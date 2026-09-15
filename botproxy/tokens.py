@@ -19,6 +19,12 @@ from datetime import UTC, datetime, timedelta
 from botproxy import config, oauth, store
 from botproxy.errors import AuthError
 
+# A token younger than this that the endpoint refuses is not stale — it is
+# refused for a reason another token will share: an issuer the endpoint does
+# not accept, a missing permission. Renewing again would cost one round trip
+# to the provider per request and change nothing.
+FRESHLY_ISSUED_SECONDS = 60
+
 
 @dataclass(frozen=True)
 class PendingLogin:
@@ -62,6 +68,8 @@ class Manager:
         self._notify = notify or (lambda _message: None)
         self._access: str | None = None
         self._expires_at: datetime | None = None
+        self._issued_at: datetime | None = None
+        self._refusal_reported = False
         self._pending: PendingLogin | None = None
         self._stop = threading.Event()
         self._watchdog: threading.Thread | None = None
@@ -148,12 +156,32 @@ class Manager:
         been replaced by then, someone else did the work while this caller was
         waiting for the lock, and renewing again would ask the provider ten
         times for what ten requests needed once.
+
+        A token issued moments ago is not renewed either. The endpoint refusing
+        it says the configuration is wrong, not the token — and the refusal
+        goes through to the client, which shows the endpoint's own reason.
         """
         with self._lock:
             if stale is not None and self._access is not None and self._access != stale:
                 return self._access
+            if self._access is not None and self._freshly_issued():
+                if not self._refusal_reported:
+                    self._refusal_reported = True
+                    self._notify(
+                        "Der Endpunkt lehnt ein eben ausgestelltes Token ab. "
+                        "Erneuern hilft da nicht — vermutlich gehören "
+                        "BOTPROXY_AUTHORITY und BOTPROXY_BASE_URL nicht zur "
+                        "selben Umgebung, oder die Berechtigung fehlt."
+                    )
+                return self._access
             self._expires_at = datetime.now(UTC)
             return self.ensure_fresh()
+
+    def _freshly_issued(self) -> bool:
+        if self._issued_at is None:
+            return False
+        age = datetime.now(UTC) - self._issued_at
+        return age.total_seconds() < FRESHLY_ISSUED_SECONDS
 
     # --- Erneuern und Anmelden -----------------------------------------------
 
@@ -191,6 +219,8 @@ class Manager:
         store.write_refresh(config.REFRESH_FILE, refresh_token, access)
         self._access = access
         self._expires_at = store.jwt_expiry(access)
+        self._issued_at = datetime.now(UTC)
+        self._refusal_reported = False
         self._pending = None
 
     def _begin_login(self) -> None:
