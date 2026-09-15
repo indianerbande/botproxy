@@ -4,7 +4,7 @@ Stand: 15. September 2026. Diese Datei ist der Einstieg für eine neue Sitzung.
 
 ## Was läuft
 
-Der Proxy ist vollständig und getestet. 52 Tests grün, Ruff sauber.
+Der Proxy ist vollständig und getestet. 53 Tests grün, Ruff sauber.
 
 Ein Lauf gegen einen Stub-Endpunkt funktioniert von außen: Anmeldung
 übersprungen bei gültigem Token, Modelle erkannt, Anfragen durchgereicht,
@@ -108,6 +108,12 @@ es tut — Attribute direkt zu setzen übersprünge genau das Lesen der
 Umgebung. Kommt ein Platzhalter in die Vorlage, prüft der Test ihn mit; findet
 er keinen mehr, schlägt ein Wächtertest an.
 
+**Der Schrägstrich am Ende fällt beim Einlesen weg**, nicht in der Prüfung.
+Vorher schnitt `_env.require_url` ihn ab, aber `config.validate` verwarf das
+Ergebnis — aus `https://host/pfad/v1/` wurde `…/v1//chat/completions`.
+`config.py` kürzt jetzt `BASE_URL` und `AUTHORITY` direkt; `require_url`
+prüft nur noch. So gilt es auch dort, wo `validate` nicht läuft.
+
 **Kein `chmod`.** Unter Windows schaltet es nur den Schreibschutz. Token und
 Key sind geschützt, weil sie unter `%USERPROFILE%` liegen und dessen ACL erben.
 
@@ -172,12 +178,6 @@ demselben `oauth.py` im selben Zielnetz:
 
 **Nicht automatisch getestet:** `__main__.status` gegen eine laufende Instanz
 (von Hand gegen LM Studio geprüft).
-
-**Ein Schrägstrich am Ende von `BOTPROXY_BASE_URL` wird nicht entfernt.**
-`_env.require_url` gibt den Wert ohne ihn zurück, aber `config.validate`
-verwirft das Ergebnis. Aus `https://host/pfad/v1/` wird dann
-`https://host/pfad/v1//chat/completions`. Bei `AUTHORITY` passiert das nicht,
-`oauth.py` schneidet selbst ab. Nicht behoben.
 
 **Kein Log.** Absichtlich: Header tragen das Token, Bodies den Quelltext des
 Benutzers. Falls Diagnose nötig wird, muss vorher feststehen, was nicht

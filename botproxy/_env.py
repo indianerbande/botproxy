@@ -57,12 +57,12 @@ def integer(name: str, default: int) -> int:
         raise ConfigError(f"{name} ist keine ganze Zahl: {value!r}") from exc
 
 
-def require_url(name: str, value: str) -> str:
+def require_url(name: str, value: str) -> None:
     """A usable absolute URL, or a message naming the variable.
 
-    Checked at startup for both the endpoint and the identity provider. The
-    trailing slash is stripped so callers can join paths without guessing
-    whether one is already there.
+    Checked at startup for both the endpoint and the identity provider. Only a
+    check: a trailing slash is removed where the value is read, in `config.py`,
+    so it is gone whether or not this ran.
     """
     if not value:
         raise ConfigError(
@@ -77,7 +77,6 @@ def require_url(name: str, value: str) -> str:
     parsed = urlparse(value)
     if parsed.scheme not in ("http", "https") or not parsed.netloc:
         raise ConfigError(f"{name} ist keine brauchbare URL: {value!r}")
-    return value.rstrip("/")
 
 
 def require_value(name: str, value: str) -> str:

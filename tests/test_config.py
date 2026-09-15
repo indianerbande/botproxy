@@ -124,3 +124,25 @@ def test_fehlender_wert_wird_beim_namen_genannt(umgebung, name):
 
     with pytest.raises(ConfigError, match=f"{name} ist nicht gesetzt"):
         config.validate()
+
+
+def test_schraegstrich_am_ende_faellt_weg(umgebung):
+    """Paths are appended with a leading slash; a trailing one would double it."""
+    from botproxy import forward, tokens
+
+    umgebung(
+        {
+            **GUELTIG,
+            "BOTPROXY_BASE_URL": "http://127.0.0.1:1/v1/",
+            "BOTPROXY_AUTHORITY": "http://127.0.0.1:2/",
+        }
+    )
+    config.validate()
+
+    f = forward.Forwarder(tokens.Manager())
+    try:
+        ziel = f.target("/v1/chat/completions", "")
+    finally:
+        f.close()
+    assert ziel == "http://127.0.0.1:1/v1/chat/completions"
+    assert config.AUTHORITY == "http://127.0.0.1:2"

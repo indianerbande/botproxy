@@ -15,10 +15,12 @@ from botproxy.errors import ConfigError
 
 # --- Ziel --------------------------------------------------------------------
 # Der Pfad gehört mit in die URL. Fehlt er, antwortet der Endpunkt mit 404.
-BASE_URL: str = _env.string("BOTPROXY_BASE_URL")
+# Ein Schrägstrich am Ende fällt weg: Pfade werden mit führendem angehängt, und
+# `…/v1//chat/completions` muss ein Endpunkt nicht als denselben Pfad lesen.
+BASE_URL: str = _env.string("BOTPROXY_BASE_URL").rstrip("/")
 
 # --- Anmeldung ---------------------------------------------------------------
-AUTHORITY: str = _env.string("BOTPROXY_AUTHORITY")
+AUTHORITY: str = _env.string("BOTPROXY_AUTHORITY").rstrip("/")
 CLIENT_ID: str = _env.string("BOTPROXY_CLIENT_ID")
 
 # Ohne offline_access gibt der Provider kein Refresh-Token aus, und Erneuern hieße
