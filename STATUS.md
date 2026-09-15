@@ -4,7 +4,7 @@ Stand: 15. September 2026. Diese Datei ist der Einstieg für eine neue Sitzung.
 
 ## Was läuft
 
-Der Proxy ist vollständig und getestet. 28 Tests grün, Ruff sauber.
+Der Proxy ist vollständig und getestet. 30 Tests grün, Ruff sauber.
 
 Ein Lauf gegen einen Stub-Endpunkt funktioniert von außen: Anmeldung
 übersprungen bei gültigem Token, Modelle erkannt, Anfragen durchgereicht,
@@ -39,6 +39,22 @@ abgewiesene Anfragen zehn Erneuerungen aus — im Betrieb unsichtbar, nur im Log
 des Providers zu sehen. Geprüft in
 `test_zehn_gleichzeitige_anfragen_loesen_eine_erneuerung_aus`.
 
+**Ein frisch ausgestelltes Token wird nach 401 nicht erneuert.** Jünger als
+`FRESHLY_ISSUED_SECONDS` (60 s) und trotzdem abgelehnt heißt: nicht das Token
+ist falsch, sondern die Umgebung — typisch ein Aussteller, den der Endpunkt
+nicht kennt, weil `AUTHORITY` und `BASE_URL` nicht zusammengehören. Ohne die
+Frist holte jede Anfrage ein neues Token, bekäme wieder 401 und reichte es
+durch; `stale` hilft dort nicht, weil jeder Aufrufer das gerade erneuerte Token
+vorlegt. Die Ablehnung geht mit dem Grund des Endpunkts an den Client, im
+Fenster steht einmal ein Hinweis. Nach der Frist darf wieder erneuert werden,
+damit ein später widerrufenes Token nicht bis zum Ablauf klemmt. Geprüft in
+`test_dauerhaftes_401_erneuert_nicht_bei_jeder_anfrage`.
+
+**`allatclaims` in den Scopes.** Ohne ihn fehlen dem Token die Claims der
+Anmeldung, und die Ablehnung kommt als 403 an der Berechtigung, nicht als 401 —
+nichts daran zeigt auf den Scope. Ein Provider, der ihn nicht kennt, lehnt ihn
+bei der Anmeldung mit Namen ab; dann wird er über `BOTPROXY_SCOPES` weggelassen.
+
 **Kein `Content-Length` auf dem Rückweg.** Eine gesetzte Länge zwingt zum
 Sammeln, und eine gestreamte Antwort käme am Stück statt Wort für Wort — ohne
 Fehlermeldung.
@@ -52,22 +68,52 @@ wird nichts mehr wiederholt.
 
 **`truststore` statt `certifi`.** Hinter einem TLS-inspizierenden Proxy
 scheitert sonst jede Weiterleitung, während die Anmeldung weiterläuft — die
-geht über `urllib` und liest den Systemspeicher. Dasselbe Netz, zwei Urteile.
+geht über `urllib` und liest unter Windows den Systemspeicher. Dasselbe Netz,
+zwei Urteile.
+
+Das gilt **nur unter Windows**. Unter macOS und Linux prüft `urllib` gegen die
+Pfade von OpenSSL, nicht gegen den Schlüsselbund. Dort wäre das Bild hinter
+einem solchen Proxy umgekehrt: Weiterleitung geht, Anmeldung scheitert. Nicht
+behoben, weil die Zielumgebung Windows ist; `oauth.py` bekäme dafür denselben
+`truststore`-Kontext.
 
 **Der Wecker ist der Normalfall.** Erneuert wird, bevor eine Anfrage auf ein
 abgelaufenes Token trifft, nicht weil eine darauf getroffen ist.
 
 ## Offen
 
-**Noch nie gegen einen echten Endpunkt gelaufen.** Alles bisher gegen Stubs.
-Der erste echte Lauf braucht `BOTPROXY_BASE_URL`, `BOTPROXY_AUTHORITY` und
-`BOTPROXY_CLIENT_ID` — Letzteres muss beim Provider für den Device Code Flow
-registriert sein. Ohne diese Registrierung kann botproxy nichts erneuern.
+**botproxy selbst lief noch nie gegen einen echten Endpunkt.** Alles bisher
+gegen Stubs. Der erste echte Lauf braucht `BOTPROXY_BASE_URL`,
+`BOTPROXY_AUTHORITY` und `BOTPROXY_CLIENT_ID`.
 
-**Ungeprüft, weil Stubs es nicht hergeben:** ob der Provider
-`verification_uri_complete` liefert (dann ist der Code im Browser schon
-eingetragen), wie er sich bei `slow_down` verhält, und ob das Zertifikat des
-Endpunkts über den Systemspeicher akzeptiert wird.
+**Belegt ist der Mechanismus trotzdem**, aus einem früheren Werkzeug mit
+demselben `oauth.py` im selben Zielnetz:
+
+- Device Code Flow funktioniert **ohne eigene App-Registrierung** — die
+  Client-ID, mit der bisher Token geholt wurden, reicht.
+- Die Bestätigung im Browser nutzt die bestehende Windows-Anmeldung; es kommt
+  keine Passwortabfrage.
+- Ein Refresh-Token wird ausgegeben, obwohl `scp` im Zugangstoken kein
+  `offline_access` nennt.
+- Das Zertifikat des Endpunkts wird mit `truststore` über den Systemspeicher
+  angenommen.
+- Eine Anfrage dauert rund 51 s, gleichzeitige werden eingereiht. Das Timeout
+  von 600 s reicht.
+- Modellnamen tragen einen führenden Schrägstrich und eigene Schreibweise.
+  botproxy kann das nicht ausgleichen; es steht im README.
+
+**Weiterhin ungeprüft:** ob der Provider `verification_uri_complete` liefert
+(dann ist der Code im Browser schon eingetragen) und wie er sich bei
+`slow_down` verhält.
+
+**Nachts neue Browser-Tabs.** Ist das Refresh-Token tot, startet der Wecker
+eine Anmeldung. Läuft der Code unbestätigt ab, beginnt beim nächsten Durchlauf
+die nächste — mit `webbrowser.open`, also etwa ein Tab je Viertelstunde. Nicht
+behoben.
+
+**`_wait_for_login` bemerkt eine abgebrochene Anmeldung nicht** und wartet die
+vollen 15 Minuten, danach öffnet der Port ohne Token und ohne eigene Meldung.
+Gehört zur Überarbeitung der Stelle unten.
 
 **`_wait_for_login` in `server.py`** pollt alle zwei Sekunden statt sich
 wecken zu lassen. Funktioniert, ist aber die unschönste Stelle im Code.
@@ -79,9 +125,8 @@ Start mit Platzhalterwerten (`config.validate`).
 Benutzers. Falls Diagnose nötig wird, muss vorher feststehen, was nicht
 hineindarf.
 
-## Commit-Stand
+**Anfragen ohne `Content-Length`** (`Transfer-Encoding: chunked`) gehen mit
+leerem Body hinaus, ohne Meldung. Ein 411 wäre ehrlicher.
 
-Offen sind `forward.py` und `tokens.py` (die `force_refresh`-Korrektur),
-`CLAUDE.md` und die fünf Dateien unter `tests/`. Sinnvoll als zwei Commits:
-erst der Fehler, dann die Tests — oder umgekehrt, damit erkennbar bleibt,
-wodurch er aufgefallen ist.
+**Der Pre-commit-Hook ist nicht aktiv.** `hooks/pre-commit` liegt im Repo, aber
+ohne `git config core.hooksPath hooks` läuft er nie.

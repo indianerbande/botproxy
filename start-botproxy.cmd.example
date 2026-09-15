@@ -24,13 +24,20 @@ set BOTPROXY_BASE_URL=https://HOST/PFAD/v1
 
 rem --- Anmeldung -------------------------------------------------------------
 rem Ohne diese beiden Werte kann botproxy nichts erneuern. Die Client-ID ist
-rem die beim Identity Provider registrierte Anwendung fuer den Device Code Flow.
+rem die Anwendung, fuer die der Identity Provider Token ausstellt - oft reicht
+rem die, mit der bisher Token geholt wurden.
+rem
+rem AUTHORITY und BASE_URL gehoeren zur selben Umgebung. Jeder Endpunkt nimmt
+rem nur Token seines eigenen Ausstellers an; ein fremder ergibt 401, gleich wie
+rem frisch das Token ist. Wer das eine umstellt, stellt das andere mit um.
 set BOTPROXY_AUTHORITY=https://IDP-HOST
 set BOTPROXY_CLIENT_ID=CLIENT-ID
 
 rem Ohne offline_access gibt der Provider kein Refresh-Token aus. Dann waere
 rem nach Ablauf Schluss, und die Anmeldung kaeme jedes Mal wieder.
-set BOTPROXY_SCOPES=openid offline_access
+rem allatclaims bringt die Claims der Anmeldung ins Token; fehlen sie, lehnt
+rem der Endpunkt mit 403 ab. Kennt der Provider den Scope nicht, weglassen.
+set BOTPROXY_SCOPES=openid allatclaims offline_access
 
 rem --- Betrieb ---------------------------------------------------------------
 rem Port aendern, falls 8127 belegt ist. Muss dann auch in der Base URL des
@@ -41,5 +48,13 @@ rem Wie lange vor Ablauf erneuert wird, und wie oft nachgesehen wird.
 set BOTPROXY_REFRESH_MARGIN=300
 set BOTPROXY_CHECK_INTERVAL=60
 
+rem In den Ordner dieser Datei wechseln. Beim Doppelklick tut Windows das
+rem ohnehin, beim Aufruf aus einem anderen Verzeichnis nicht - und dann
+rem faende "python -m botproxy" das Paket nicht.
+cd /d "%~dp0"
+
 python -m botproxy
+
+rem Ohne pause schliesst sich das Fenster beim Doppelklick sofort und eine
+rem Fehlermeldung waere nicht zu lesen.
 pause

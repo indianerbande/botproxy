@@ -62,7 +62,7 @@ def test_fremdes_refresh_token_wird_nicht_benutzt(settings, idp, tmp_path):
 
 
 def test_zehn_gleichzeitige_anfragen_loesen_eine_erneuerung_aus(expiring, idp):
-    """The whole reason the lock exists — `yacli` never had to answer this."""
+    """The whole reason the lock exists — a single-user tool never meets this."""
     fehler: list[Exception] = []
     start = threading.Barrier(10)
 

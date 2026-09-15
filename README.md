@@ -41,19 +41,40 @@ Alles über Umgebungsvariablen.
 |---|---|---|
 | `BOTPROXY_BASE_URL` | — | Zieladresse, Pfad inklusive |
 | `BOTPROXY_AUTHORITY` | — | Basis-URL des Identity Providers |
-| `BOTPROXY_CLIENT_ID` | — | dort registrierte Anwendung |
-| `BOTPROXY_SCOPES` | `openid offline_access` | ohne `offline_access` kein Refresh-Token |
+| `BOTPROXY_CLIENT_ID` | — | Anwendung, für die der Provider Token ausstellt |
+| `BOTPROXY_SCOPES` | `openid allatclaims offline_access` | ohne `offline_access` kein Refresh-Token; `allatclaims` weglassen, wenn der Provider ihn nicht kennt |
 | `BOTPROXY_PORT` | `8127` | |
 | `BOTPROXY_REFRESH_MARGIN` | `300` | Sekunden vor Ablauf wird erneuert |
 | `BOTPROXY_CHECK_INTERVAL` | `60` | Sekunden zwischen zwei Prüfungen |
+| `BOTPROXY_UPSTREAM_TIMEOUT` | `600` | Sekunden, die auf den Endpunkt gewartet wird |
 
 Token und lokaler API-Key liegen unter `~/.botproxy/`, jeweils mit `0600`.
+
+**`BOTPROXY_AUTHORITY` und `BOTPROXY_BASE_URL` gehören zur selben Umgebung.**
+Ein Endpunkt nimmt nur Token seines eigenen Ausstellers an. Passen die beiden
+nicht zusammen, antwortet er auf jedes Token mit 401, auch auf ein eben
+ausgestelltes. botproxy erneuert dann einmal, reicht die Ablehnung danach
+durch und sagt im Fenster, woran es vermutlich liegt.
+
+Ein 403 vom Endpunkt heißt dagegen: das Token wurde verstanden, es fehlt die
+Berechtigung. Das klärt der Betreiber, nicht botproxy. Die 403-Antworten von
+botproxy selbst tragen `"type": "botproxy"` und sind daran zu unterscheiden.
 
 ## Client einrichten
 
 Provider vom Typ *OpenAI Compatible*, Base URL `http://127.0.0.1:8127/v1`, als
 API-Key den Wert aus der Statuszeile. Die Modellliste holt der Client selbst
 über `/v1/models`.
+
+**Modellnamen genau so eintragen, wie `/v1/models` sie nennt** — mit einem
+führenden Schrägstrich, falls der Endpunkt einen hat, und in derselben
+Schreibweise. botproxy liest den Body nicht und korrigiert daher keinen Namen;
+ein abweichender ergibt ein 404 vom Endpunkt.
+
+Eine Antwort kann dauern: rund eine Minute je Anfrage ist bei einem
+ausgelasteten Endpunkt normal, gleichzeitige Anfragen stellt er oft nur in eine
+Warteschlange. Das Timeout von botproxy liegt deshalb bei zehn Minuten
+(`BOTPROXY_UPSTREAM_TIMEOUT`); ein Timeout im Client sollte nicht kürzer sein.
 
 Schickt der Client eine feste Obergrenze für `max_tokens` mit, die den
 gesamten Kontext des Endpunkts für die Antwort reserviert, bleibt nichts für

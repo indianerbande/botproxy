@@ -61,6 +61,26 @@ botproxy/
   Tages falsch — Clients ändern ihr Format, ohne zu fragen.
 - Keine Geheimnisse ins Log. Weder Token noch Bodies, unter keinem Schalter.
 
+## Was Endpunkt und Provider tatsächlich tun
+
+Annahmen, die naheliegen und falsch sind:
+
+- **Ein 401 heißt nicht „abgelaufen“.** Ein Endpunkt nimmt nur Token seines
+  eigenen Ausstellers an; ein fremder ergibt 401 auf jedes Token, auch ein
+  frisches. Deshalb wird ein eben ausgestelltes Token nach 401 nicht erneut
+  erneuert (`FRESHLY_ISSUED_SECONDS`).
+- **Ein 403 vom Endpunkt heißt: Token verstanden, Berechtigung fehlt.** Kein
+  Grund zu erneuern. Fehlende Claims im Token sehen genauso aus — daher
+  `allatclaims` in den Scopes.
+- **`scp` sagt nichts über das Refresh-Token.** Es kann eines kommen, obwohl
+  `offline_access` dort fehlt. Nichts aus `scp` ableiten.
+- **`urllib` liest den Zertifikatsspeicher des Systems nur unter Windows.**
+  `httpx` nie, deshalb `truststore`. Unter macOS und Linux prüfen Anmeldung
+  und Weiterleitung gegen verschiedene Quellen.
+- **Modellnamen gehören dem Endpunkt**, mit führendem Schrägstrich und eigener
+  Schreibweise. botproxy gleicht nichts an — der Body wird nie geparst.
+- **Eine Anfrage darf eine Minute dauern.** Timeouts nicht verkürzen.
+
 ## Testen
 
 Ohne Netz, ohne Token. Der Prüfstand sind zwei Stubs in `tests/`: ein
@@ -74,6 +94,7 @@ Was Abdeckung braucht:
 - Hop-by-hop-Header verschwinden, `Authorization` wird ersetzt.
 - Eine gestreamte Antwort kommt in denselben Stücken heraus, nicht in einem.
 - 401 führt zu genau einem Wiederholungsversuch; ein zweiter 401 geht durch.
+- Ein dauerhafter 401 löst eine Erneuerung aus, nicht eine pro Anfrage.
 - Zehn gleichzeitige Anfragen auf abgelaufenem Token lösen eine Erneuerung
   aus, nicht zehn. Dasselbe für die Anmeldung.
 - Ein rotiertes Refresh-Token wird gespeichert, das alte verschwindet.

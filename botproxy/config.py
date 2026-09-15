@@ -22,8 +22,15 @@ AUTHORITY: str = _env.string("BOTPROXY_AUTHORITY")
 CLIENT_ID: str = _env.string("BOTPROXY_CLIENT_ID")
 
 # Ohne offline_access gibt der Provider kein Refresh-Token aus, und Erneuern hieße
-# jedes Mal wieder Anmelden.
-SCOPES: str = _env.string("BOTPROXY_SCOPES", "openid offline_access")
+# jedes Mal wieder Anmelden. Ob er eines ausgibt, steht nicht in `scp` des
+# Zugangstokens — dort kann offline_access fehlen, obwohl eines kam.
+#
+# allatclaims lässt die Claims der Anmeldung ins Zugangstoken durch. Fehlen sie,
+# besteht das Token die Prüfung von Signatur und Aussteller und scheitert erst an
+# der Berechtigung: 403 statt 401, und nichts deutet auf den Scope. Ein Provider,
+# der den Scope nicht kennt, lehnt ihn bei der Anmeldung mit Namen ab — dann hier
+# weglassen.
+SCOPES: str = _env.string("BOTPROXY_SCOPES", "openid allatclaims offline_access")
 
 # --- Betrieb -----------------------------------------------------------------
 PORT: int = _env.integer("BOTPROXY_PORT", 8127)
