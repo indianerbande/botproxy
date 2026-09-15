@@ -4,7 +4,7 @@ Stand: 15. September 2026. Diese Datei ist der Einstieg für eine neue Sitzung.
 
 ## Was läuft
 
-Der Proxy ist vollständig und getestet. 53 Tests grün, Ruff sauber.
+Der Proxy ist vollständig und getestet. 56 Tests grün, Ruff sauber.
 
 Ein Lauf gegen einen Stub-Endpunkt funktioniert von außen: Anmeldung
 übersprungen bei gültigem Token, Modelle erkannt, Anfragen durchgereicht,
@@ -119,7 +119,8 @@ ZIP“ von GitHub, und das baut `git archive` — `export-ignore` in
 `.gitattributes` hält `tests/`, `hooks/`, `pyproject.toml`,
 `requirements-dev.txt`, `CLAUDE.md` und `STATUS.md` heraus. Lokal nachgestellt:
 15 Einträge, aus dem entpackten ZIP installiert und gestartet. Auf GitHub bleiben
-die Dateien trotzdem sichtbar; nur das ZIP ist schlanker. Entpacken über eine
+die Dateien trotzdem sichtbar; nur das ZIP ist schlanker. Skripte stehen nicht
+darin; `tests/test_verteilung.py` hält das fest. Entpacken über eine
 alte Version löscht nichts — beim Update in einen frischen Ordner.
 
 **Kein `chmod`.** Unter Windows schaltet es nur den Schreibschutz. Token und

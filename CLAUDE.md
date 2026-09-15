@@ -40,6 +40,10 @@ der Betrieb unter Windows braucht: `botproxy/`, `requirements.txt`,
 `start-botproxy.cmd.example`, `README.md`. Alles andere trägt in
 `.gitattributes` `export-ignore`.
 
+**Im ausgelieferten Teil keine Skripte:** keine Datei mit Shebang, keine
+`.sh`, `.ps1`, `.bat`, `.cmd`. Einzige Ausnahme ist `start-botproxy.cmd.example`.
+`tests/test_verteilung.py` prüft das.
+
 **Eine neue Datei, die der Betrieb nicht braucht, gehört dort eingetragen.**
 Sonst liegt sie ab dem nächsten Download auf dem Zielrechner. Prüfen:
 `git archive HEAD | tar -t`.
