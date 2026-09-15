@@ -12,26 +12,22 @@ Jeder Client, der eine OpenAI-kompatible Base URL akzeptiert, funktioniert.
 
 ## Installation
 
-```sh
-python -m venv .venv && . .venv/bin/activate
+botproxy läuft unter **Windows**. Andere Systeme sind kein Ziel.
+
+```bat
+python -m venv .venv
+.venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
 ## Start
 
-```sh
-export BOTPROXY_BASE_URL=https://beispiel/api/v1
-export BOTPROXY_AUTHORITY=https://idp.beispiel
-export BOTPROXY_CLIENT_ID=deine-client-id
-python -m botproxy
-```
+`start-botproxy.cmd.example` nach `start-botproxy.cmd` kopieren, Werte
+eintragen, doppelklicken.
 
 Beim ersten Start öffnet sich der Browser zur Anmeldung. Danach steht im
 Fenster, worauf botproxy lauscht, bis wann das Token gilt und ob der Endpunkt
 antwortet — dazu Base URL und API-Key für den Client.
-
-Unter Windows: `start-botproxy.cmd.example` kopieren, Werte eintragen,
-doppelklicken.
 
 ## Einstellungen
 
@@ -48,7 +44,8 @@ Alles über Umgebungsvariablen.
 | `BOTPROXY_CHECK_INTERVAL` | `60` | Sekunden zwischen zwei Prüfungen |
 | `BOTPROXY_UPSTREAM_TIMEOUT` | `600` | Sekunden, die auf den Endpunkt gewartet wird |
 
-Token und lokaler API-Key liegen unter `~/.botproxy/`, jeweils mit `0600`.
+Token und lokaler API-Key liegen unter `%USERPROFILE%\.botproxy\`. Lesen
+dürfen sie, wem das Benutzerprofil gehört — die Dateien erben dessen Rechte.
 
 **`BOTPROXY_AUTHORITY` und `BOTPROXY_BASE_URL` gehören zur selben Umgebung.**
 Ein Endpunkt nimmt nur Token seines eigenen Ausstellers an. Passen die beiden

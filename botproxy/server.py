@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import hmac
 import json
+import socket
 import sys
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
@@ -216,7 +217,11 @@ class Proxy(ThreadingHTTPServer):
     """Bound to the loopback interface. Never to 0.0.0.0, not even by switch."""
 
     daemon_threads = True
-    allow_reuse_address = True
+    # On Windows SO_REUSEADDR does not mean "past TIME_WAIT" but "share a port
+    # someone is listening on". A second instance would bind without complaint,
+    # and so would any other local process — which then receives the client's
+    # requests, local key included.
+    allow_reuse_address = False
 
     def __init__(self, manager: tokens.Manager, local_key: str) -> None:
         super().__init__(("127.0.0.1", config.PORT), Handler)
@@ -224,6 +229,16 @@ class Proxy(ThreadingHTTPServer):
         self.local_key = local_key
         self.forwarder = forward.Forwarder(manager)
         self.upstream_state = "ungeprüft"
+
+    def server_bind(self) -> None:
+        """Claim the port exclusively, so nobody can bind it alongside us.
+
+        Leaving out SO_REUSEADDR is not enough on Windows: a later socket that
+        sets it may still share the port. SO_EXCLUSIVEADDRUSE forbids that.
+        """
+        if hasattr(socket, "SO_EXCLUSIVEADDRUSE"):
+            self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
+        super().server_bind()
 
     def probe(self) -> None:
         """Ask the endpoint for its models — the one honest test of the chain.

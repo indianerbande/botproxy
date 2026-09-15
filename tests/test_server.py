@@ -224,3 +224,10 @@ def test_ungelesener_body_wird_nicht_zur_naechsten_anfrage(proxy, upstream):
     assert antwort.startswith(b"HTTP/1.1 403")
     assert antwort.count(b"HTTP/1.1 ") == 1
     assert upstream.seen == []
+
+
+def test_zweite_instanz_bekommt_den_port_nicht(proxy, signed_in):
+    """The start message says "vermutlich läuft schon eine Instanz" — which only
+    helps if binding actually fails. On Windows SO_REUSEADDR would let it pass."""
+    with pytest.raises(OSError):
+        server.Proxy(signed_in, "zweiter-key")

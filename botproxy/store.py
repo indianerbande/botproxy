@@ -66,12 +66,14 @@ def write_secret(path: Path, value: str) -> Path:
 
     A crash mid-write would otherwise leave a truncated secret, and the next
     request would fail in a way that looks like a server problem.
+
+    Who may read the file is decided by the ACL it inherits from the user
+    profile, not by mode bits — `chmod` on Windows only toggles read-only.
     """
     path.parent.mkdir(parents=True, exist_ok=True)
     handle, temp_name = tempfile.mkstemp(dir=path.parent, prefix=f".{path.name}.")
     temp_path = Path(temp_name)
     try:
-        os.chmod(temp_path, 0o600)
         with os.fdopen(handle, "w", encoding="utf-8") as file:
             file.write(value.strip() + "\n")
             file.flush()

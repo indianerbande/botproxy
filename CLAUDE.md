@@ -5,6 +5,8 @@ Endpunkt, dessen Token nach kurzer Zeit abläuft.
 
 ## Stack
 
+- **Nur Windows.** macOS und Linux sind kein Ziel; Code für sie wird nicht
+  geschrieben. Die Tests laufen trotzdem überall, auch auf dem Entwicklungsrechner.
 - Python ≥ 3.11
 - `httpx` — Weiterreichen der Anfragen, inklusive Streaming
 - `truststore` — TLS gegen den Zertifikatsspeicher des Systems
@@ -74,9 +76,13 @@ Annahmen, die naheliegen und falsch sind:
   `allatclaims` in den Scopes.
 - **`scp` sagt nichts über das Refresh-Token.** Es kann eines kommen, obwohl
   `offline_access` dort fehlt. Nichts aus `scp` ableiten.
-- **`urllib` liest den Zertifikatsspeicher des Systems nur unter Windows.**
-  `httpx` nie, deshalb `truststore`. Unter macOS und Linux prüfen Anmeldung
-  und Weiterleitung gegen verschiedene Quellen.
+- **`urllib` liest den Zertifikatsspeicher von Windows, `httpx` nicht.**
+  Deshalb `truststore` für die Weiterleitung; sonst scheitert sie hinter einem
+  TLS-aufbrechenden Proxy, während die Anmeldung durchgeht.
+- **`SO_REUSEADDR` heißt unter Windows „Port teilen“.** Ein zweiter Prozess
+  bindet denselben Port ohne Fehler. Deshalb `SO_EXCLUSIVEADDRUSE`.
+- **Dateirechte sind ACLs, keine Modusbits.** `chmod` schaltet nur
+  Schreibschutz; geschützt ist, was unter dem Benutzerprofil liegt.
 - **Modellnamen gehören dem Endpunkt**, mit führendem Schrägstrich und eigener
   Schreibweise. botproxy gleicht nichts an — der Body wird nie geparst.
 - **Eine Anfrage darf eine Minute dauern.** Timeouts nicht verkürzen.
@@ -102,6 +108,7 @@ Was Abdeckung braucht:
 - Ein rotiertes Refresh-Token wird gespeichert, das alte verschwindet.
 - Ein fremder Fingerprint verhindert die Erneuerung.
 - `Origin`, `Sec-Fetch-Site` und ein falscher API-Key ergeben 403.
+- Eine zweite Instanz bekommt den Port nicht.
 - `Transfer-Encoding` ergibt 411, eine unlesbare Länge 400. Nach jeder
   Ablehnung ist die Verbindung zu, ungelesene Bytes werden keine Anfrage.
 - Kein Log-Eintrag enthält ein Token.

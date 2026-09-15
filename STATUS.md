@@ -4,7 +4,7 @@ Stand: 15. September 2026. Diese Datei ist der Einstieg für eine neue Sitzung.
 
 ## Was läuft
 
-Der Proxy ist vollständig und getestet. 37 Tests grün, Ruff sauber.
+Der Proxy ist vollständig und getestet. 38 Tests grün, Ruff sauber.
 
 Ein Lauf gegen einen Stub-Endpunkt funktioniert von außen: Anmeldung
 übersprungen bei gültigem Token, Modelle erkannt, Anfragen durchgereicht,
@@ -71,11 +71,21 @@ scheitert sonst jede Weiterleitung, während die Anmeldung weiterläuft — die
 geht über `urllib` und liest unter Windows den Systemspeicher. Dasselbe Netz,
 zwei Urteile.
 
-Das gilt **nur unter Windows**. Unter macOS und Linux prüft `urllib` gegen die
-Pfade von OpenSSL, nicht gegen den Schlüsselbund. Dort wäre das Bild hinter
-einem solchen Proxy umgekehrt: Weiterleitung geht, Anmeldung scheitert. Nicht
-behoben, weil die Zielumgebung Windows ist; `oauth.py` bekäme dafür denselben
-`truststore`-Kontext.
+**Nur Windows.** macOS und Linux sind kein Ziel. Dass `urllib` dort nicht den
+Systemspeicher liest, ist deshalb kein offener Punkt. Entwickelt und getestet
+wird trotzdem auch auf dem Mac; die Tests hängen an keinem System.
+
+**Der Port gehört botproxy allein.** `socketserver` setzt mit
+`allow_reuse_address` `SO_REUSEADDR`, und das erlaubt unter Windows einem
+zweiten Prozess, denselben Port zu binden — eine zweite Instanz startete ohne
+Fehler, und die Meldung „vermutlich läuft schon eine Instanz“ kam nie. Jetzt
+ohne `SO_REUSEADDR` und mit `SO_EXCLUSIVEADDRUSE`. Auf dem Mac scheitert das
+zweite Binden auch vorher schon; der Test
+`test_zweite_instanz_bekommt_den_port_nicht` beweist die Korrektur also erst
+unter Windows.
+
+**Kein `chmod`.** Unter Windows schaltet es nur den Schreibschutz. Token und
+Key sind geschützt, weil sie unter `%USERPROFILE%` liegen und dessen ACL erben.
 
 **Der Wecker ist der Normalfall.** Erneuert wird, bevor eine Anfrage auf ein
 abgelaufenes Token trifft, nicht weil eine darauf getroffen ist.
