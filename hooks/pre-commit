@@ -1,0 +1,9 @@
+#!/bin/sh
+# Geheimnisse abfangen, bevor sie im Verlauf stehen.
+# gitleaks ist nicht ueberall installiert; fehlt es, warnt der Hook und
+# laesst durch — ein Hook, der das Committen blockiert, wird sonst entfernt.
+if command -v gitleaks >/dev/null 2>&1; then
+  gitleaks protect --staged --redact --verbose || exit 1
+else
+  echo "Hinweis: gitleaks nicht gefunden, Pruefung uebersprungen." >&2
+fi

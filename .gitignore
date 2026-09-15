@@ -1,0 +1,50 @@
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+dist/
+build/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+
+# Laufzeit-Konfiguration mit internen Werten
+config.toml
+config.local.toml
+*.local.toml
+
+# Tokens und Credentials. botproxy legt seine unter ~/.botproxy/ ab, nicht
+# hier — aber ein versehentlich abgelegtes Token soll auch dann nicht ins
+# Repo koennen.
+.env
+.env.*
+!.env.example
+*.jwt
+local_key
+refresh.json
+
+# Skripte zur Fehlersuche. Sie enthalten erfahrungsgemaess ein eingetipptes
+# Token und den internen Hostnamen — beides gehoert nicht ins Repo.
+*.local.py
+
+# Die ausgefuellte Startdatei. Die Vorlage daneben ist versioniert und
+# enthaelt nur Platzhalter.
+start-botproxy.cmd
+start-botproxy.sh
+
+.gitleaks.toml
+
+# JetBrains (PyCharm)
+.idea/
+*.iml
+*.iws
+*.ipr
+out/
+
+# Editoren und Betriebssystem
+.vscode/
+.DS_Store
+
+# Lokale Notizen (Pfade, Vergleichsprojekte) — nie ins Repo
+*.local.md
+NOTES.local*

@@ -1,0 +1,45 @@
+@echo off
+rem ---------------------------------------------------------------------------
+rem  Vorlage fuer den Start unter Windows.
+rem
+rem  Kopieren nach start-botproxy.cmd, Werte eintragen, doppelklicken. Die
+rem  Kopie ist gitignored.
+rem
+rem      copy start-botproxy.cmd.example start-botproxy.cmd
+rem
+rem  Zwei Fallen:
+rem    * Kein Leerzeichen um das "=". "set VAR = wert" legt eine Variable
+rem      namens "VAR " mit dem Wert " wert" an.
+rem    * Keine Anfuehrungszeichen um den Wert. Bei "set" in einer Batchdatei
+rem      landen sie im Wert.
+rem
+rem  Weder Zugangs- noch Refresh-Token stehen hier. Beide leben unter
+rem  %USERPROFILE%\.botproxy\ und kommen von der Anmeldung. Ein Token in einer
+rem  Batchdatei waere ein Fund.
+rem ---------------------------------------------------------------------------
+
+rem --- Ziel ------------------------------------------------------------------
+rem Der Pfad gehoert mit in die URL. Fehlt er, antwortet der Endpunkt mit 404.
+set BOTPROXY_BASE_URL=https://HOST/PFAD/v1
+
+rem --- Anmeldung -------------------------------------------------------------
+rem Ohne diese beiden Werte kann botproxy nichts erneuern. Die Client-ID ist
+rem die beim Identity Provider registrierte Anwendung fuer den Device Code Flow.
+set BOTPROXY_AUTHORITY=https://IDP-HOST
+set BOTPROXY_CLIENT_ID=CLIENT-ID
+
+rem Ohne offline_access gibt der Provider kein Refresh-Token aus. Dann waere
+rem nach Ablauf Schluss, und die Anmeldung kaeme jedes Mal wieder.
+set BOTPROXY_SCOPES=openid offline_access
+
+rem --- Betrieb ---------------------------------------------------------------
+rem Port aendern, falls 8127 belegt ist. Muss dann auch in der Base URL des
+rem Clients stehen: http://127.0.0.1:PORT/v1
+set BOTPROXY_PORT=8127
+
+rem Wie lange vor Ablauf erneuert wird, und wie oft nachgesehen wird.
+set BOTPROXY_REFRESH_MARGIN=300
+set BOTPROXY_CHECK_INTERVAL=60
+
+python -m botproxy
+pause

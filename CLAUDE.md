@@ -1,0 +1,83 @@
+# botproxy
+
+Lokaler Proxy zwischen einem Editor-Client mit statischem API-Key und einem
+Endpunkt, dessen Token nach kurzer Zeit abläuft.
+
+## Stack
+
+- Python ≥ 3.11
+- `httpx` — Weiterreichen der Anfragen, inklusive Streaming
+- `truststore` — TLS gegen den Zertifikatsspeicher des Systems
+- sonst Standardbibliothek: `http.server`, `urllib`, `threading`
+
+Kein Web-Framework, kein OpenAI-SDK. botproxy spricht kein Modell an, er
+reicht Bytes weiter.
+
+**Keine neuen Abhängigkeiten ohne Not.** Zielumgebungen sind oft abgeschottet;
+jedes Paket mehr ist dort ein Antrag.
+
+## Kommandos
+
+```sh
+python -m venv .venv && . .venv/bin/activate
+pip install -r requirements.txt -r requirements-dev.txt
+
+python -m botproxy          # starten
+python -m botproxy status   # Zustand abfragen
+pytest                      # Tests
+ruff check . && ruff format .
+```
+
+Kein uv, kein Lockfile. `requirements.txt` ist die einzige Wahrheit über
+Abhängigkeiten, und sie wird von Hand gepflegt — die Liste ist zwei Zeilen
+lang.
+
+## Architektur
+
+Zwei Hälften, die sich an genau einer Stelle berühren: `forward.py` ruft
+`tokens.ensure_fresh()` und bekommt eine Zeichenkette zurück. Die Vorderseite
+weiß nichts über OAuth, die Rückseite nichts über HTTP-Weiterleitung. Wer
+beides in einer Datei anfasst, hat vermutlich die falsche offen.
+
+```
+botproxy/
+  __main__.py   Einsprung: serve (Vorgabe) und status
+  config.py     Werte oben, Mechanik in _env.py
+  errors.py     ConfigError, AuthError, UpstreamError
+  oauth.py      Device Code Flow und Refresh, nur Standardbibliothek
+  store.py      Geheimnisse atomar auf die Platte, JWT-Ablauf lesen
+  tokens.py     Zustand, Sperre, Wecker
+  forward.py    Weiterreichen, kennt nur httpx
+  server.py     Port, Routen, Statuszeile — das einzige Modul, das ausgibt
+```
+
+## Konventionen
+
+- Typannotationen überall, auch bei internen Funktionen.
+- Eigene Exceptions aus `errors.py`, kein nacktes `raise Exception`.
+- Benutzersichtbare Texte auf Deutsch, Code und Kommentare auf Englisch.
+- Keine stillen Fallbacks. Fehlt etwas, wird es gesagt.
+- **Der Body wird nie geparst.** Kein `json.loads` auf dem, was der Client
+  schickt. Alles, was botproxy über den Inhalt zu wissen glaubt, ist eines
+  Tages falsch — Clients ändern ihr Format, ohne zu fragen.
+- Keine Geheimnisse ins Log. Weder Token noch Bodies, unter keinem Schalter.
+
+## Testen
+
+Ohne Netz, ohne Token. Der Prüfstand sind zwei Stubs in `tests/`: ein
+Identity Provider, der Device Code Flow und Refresh spricht, und ein Endpunkt,
+der 401 antworten und in Stücken streamen kann. Beide klein genug, um im
+Testlauf zu starten — kein Docker, keine externe Umgebung.
+
+Was Abdeckung braucht:
+
+- Pfad, Query und Body kommen unverändert an, auch mit unbekannten Feldern.
+- Hop-by-hop-Header verschwinden, `Authorization` wird ersetzt.
+- Eine gestreamte Antwort kommt in denselben Stücken heraus, nicht in einem.
+- 401 führt zu genau einem Wiederholungsversuch; ein zweiter 401 geht durch.
+- Zehn gleichzeitige Anfragen auf abgelaufenem Token lösen eine Erneuerung
+  aus, nicht zehn. Dasselbe für die Anmeldung.
+- Ein rotiertes Refresh-Token wird gespeichert, das alte verschwindet.
+- Ein fremder Fingerprint verhindert die Erneuerung.
+- `Origin`, `Sec-Fetch-Site` und ein falscher API-Key ergeben 403.
+- Kein Log-Eintrag enthält ein Token.
