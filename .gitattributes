@@ -7,7 +7,7 @@
 # start-botproxy.cmd.example und README.md.
 #
 # Wirksam ist, was im heruntergeladenen Stand steht, nicht was lokal liegt.
-# Pruefen: git archive --format=zip HEAD | unzip -l /dev/stdin
+# Pruefen: git archive HEAD | tar -t
 
 # Entwicklung
 /tests/                 export-ignore

@@ -42,7 +42,7 @@ der Betrieb unter Windows braucht: `botproxy/`, `requirements.txt`,
 
 **Eine neue Datei, die der Betrieb nicht braucht, gehört dort eingetragen.**
 Sonst liegt sie ab dem nächsten Download auf dem Zielrechner. Prüfen:
-`git archive --format=zip HEAD | unzip -l /dev/stdin`.
+`git archive HEAD | tar -t`.
 
 Nichts im ausgelieferten Teil darf auf eine ausgeschlossene Datei verweisen.
 
