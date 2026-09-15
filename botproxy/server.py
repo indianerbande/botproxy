@@ -86,12 +86,20 @@ class Handler(BaseHTTPRequestHandler):
     # --- Antworten -----------------------------------------------------------
 
     def _fail(self, status: int, message: str, code: str) -> None:
+        """Refuse, and end the connection with the answer.
+
+        Most refusals come before the request body has been read. On a kept-alive
+        connection those unread bytes would be taken for the next request — so
+        the connection closes instead of guessing where the body ends.
+        """
         body = _error_body(message, code)
         self.send_response(status)
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(body)))
+        self.send_header("Connection", "close")
         self.end_headers()
         self.wfile.write(body)
+        self.close_connection = True
 
     def _send_status(self) -> None:
         payload = dict(self.server.manager.snapshot())
@@ -126,7 +134,9 @@ class Handler(BaseHTTPRequestHandler):
             )
             return
 
-        length = int(self.headers.get("Content-Length") or 0)
+        length = self._body_length()
+        if length is None:
+            return
         if length > MAX_BODY_BYTES:
             self._fail(413, "Anfrage zu groß.", "too_large")
             return
@@ -135,6 +145,35 @@ class Handler(BaseHTTPRequestHandler):
         body = self.rfile.read(length) if length else b""
         path, _, query = self.path.partition("?")
         self._pump(method, path, query, body)
+
+    def _body_length(self) -> int | None:
+        """How many body bytes follow, or None after refusing the request.
+
+        The body is read in full before forwarding, and that needs its length
+        up front. Without one, reading nothing would send an empty body on —
+        the endpoint would answer something about a missing field, and nothing
+        would point at the transfer.
+        """
+        if self.headers.get("Transfer-Encoding"):
+            # Also when Content-Length is present: with both, the length is to
+            # be ignored (RFC 9112 §6.3), so it says nothing reliable.
+            self._fail(
+                411,
+                "Anfragen ohne Content-Length werden nicht angenommen. botproxy "
+                "braucht den Body vollständig, um ihn nach einem 401 erneut "
+                "senden zu können; Transfer-Encoding wird nicht gelesen.",
+                "length_required",
+            )
+            return None
+        raw = self.headers.get("Content-Length")
+        if raw is None:
+            return 0
+        raw = raw.strip()
+        # isascii: isdigit alone lets "²" through, which int() then rejects.
+        if not (raw.isascii() and raw.isdigit()):
+            self._fail(400, f"Ungültige Content-Length: {raw!r}", "bad_length")
+            return None
+        return int(raw)
 
     def _pump(self, method: str, path: str, query: str, body: bytes) -> None:
         try:

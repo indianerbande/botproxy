@@ -66,6 +66,11 @@ Provider vom Typ *OpenAI Compatible*, Base URL `http://127.0.0.1:8127/v1`, als
 API-Key den Wert aus der Statuszeile. Die Modellliste holt der Client selbst
 über `/v1/models`.
 
+Anfragen brauchen eine `Content-Length`. Mit `Transfer-Encoding: chunked`
+antwortet botproxy 411: Er muss den Body vollständig kennen, um ihn nach einem
+401 erneut senden zu können. Die üblichen OpenAI-kompatiblen Clients schicken
+die Länge ohnehin mit.
+
 **Modellnamen genau so eintragen, wie `/v1/models` sie nennt** — mit einem
 führenden Schrägstrich, falls der Endpunkt einen hat, und in derselben
 Schreibweise. botproxy liest den Body nicht und korrigiert daher keinen Namen;

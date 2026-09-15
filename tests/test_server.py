@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import socket
 import threading
 import urllib.error
 import urllib.request
@@ -153,3 +154,73 @@ def test_start_ohne_bestaetigung_endet_mit_grund(idp, capsys):
     assert "abgelaufen" in meldungen
     assert "startet botproxy nicht" in meldungen
     assert "aktiv auf" not in meldungen
+
+
+def roh(instance, anfrage: bytes) -> bytes:
+    """Bytes on a socket, exactly as written — no client adding its own headers."""
+    with socket.create_connection(("127.0.0.1", instance.server_address[1])) as s:
+        s.settimeout(5)
+        s.sendall(anfrage)
+        antwort = b""
+        while chunk := s.recv(65536):
+            antwort += chunk
+    return antwort
+
+
+KEY = b"Authorization: Bearer geheim-fuer-den-test\r\n"
+
+
+def test_chunked_anfrage_ergibt_411(proxy, upstream):
+    """Without a length nothing would be read, and an empty body would go on."""
+    antwort = roh(
+        proxy,
+        b"POST /v1/chat/completions HTTP/1.1\r\nHost: x\r\n"
+        + KEY
+        + b"Transfer-Encoding: chunked\r\n\r\n2\r\n{}\r\n0\r\n\r\n",
+    )
+
+    assert antwort.startswith(b"HTTP/1.1 411")
+    assert b"length_required" in antwort
+    assert upstream.seen == []
+
+
+def test_transfer_encoding_schlaegt_content_length(proxy, upstream):
+    antwort = roh(
+        proxy,
+        b"POST /v1/chat/completions HTTP/1.1\r\nHost: x\r\n"
+        + KEY
+        + b"Content-Length: 2\r\nTransfer-Encoding: chunked\r\n\r\n"
+        + b"2\r\n{}\r\n0\r\n\r\n",
+    )
+
+    assert antwort.startswith(b"HTTP/1.1 411")
+    assert upstream.seen == []
+
+
+def test_ungueltige_content_length_ergibt_400(proxy, upstream):
+    antwort = roh(
+        proxy,
+        b"POST /v1/chat/completions HTTP/1.1\r\nHost: x\r\n"
+        + KEY
+        + b"Content-Length: zwei\r\n\r\n{}",
+    )
+
+    assert antwort.startswith(b"HTTP/1.1 400")
+    assert b"bad_length" in antwort
+    assert upstream.seen == []
+
+
+def test_ungelesener_body_wird_nicht_zur_naechsten_anfrage(proxy, upstream):
+    """A refusal leaves the body unread. On a kept-alive connection those bytes
+    would be parsed as the next request — here one that carries a valid key."""
+    versteckt = b"GET /v1/models HTTP/1.1\r\nHost: x\r\n" + KEY + b"\r\n"
+    antwort = roh(
+        proxy,
+        b"POST /v1/chat/completions HTTP/1.1\r\nHost: x\r\n"
+        + b"Content-Length: %d\r\n\r\n" % len(versteckt)
+        + versteckt,
+    )
+
+    assert antwort.startswith(b"HTTP/1.1 403")
+    assert antwort.count(b"HTTP/1.1 ") == 1
+    assert upstream.seen == []

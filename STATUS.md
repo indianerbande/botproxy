@@ -4,7 +4,7 @@ Stand: 15. September 2026. Diese Datei ist der Einstieg für eine neue Sitzung.
 
 ## Was läuft
 
-Der Proxy ist vollständig und getestet. 33 Tests grün, Ruff sauber.
+Der Proxy ist vollständig und getestet. 37 Tests grün, Ruff sauber.
 
 Ein Lauf gegen einen Stub-Endpunkt funktioniert von außen: Anmeldung
 übersprungen bei gültigem Token, Modelle erkannt, Anfragen durchgereicht,
@@ -96,6 +96,20 @@ botproxy mit Code 1 und öffnet keinen Port — der Grund steht schon im Fenster
 und ein Port ohne Token hieße nur 503 im Client. Vorher wartete
 `server._wait_for_login` bis zu 15 Minuten und öffnete danach trotzdem.
 
+**Ohne `Content-Length` kein Durchgang.** Der Body wird vor dem Weiterreichen
+vollständig gelesen, damit er nach einem 401 erneut gesendet werden kann —
+dafür braucht es die Länge vorab. Eine Anfrage mit `Transfer-Encoding` bekommt
+411, auch wenn zusätzlich eine Länge dasteht (RFC 9112 §6.3: dann gilt sie
+nicht); eine unlesbare Länge bekommt 400. Vorher ging in beiden Fällen ein
+leerer Body weiter, und der Endpunkt hätte über ein fehlendes Feld geklagt.
+Chunked zu lesen wäre machbar, aber ohne bekannten Client, der es braucht.
+
+**Jede Ablehnung schließt die Verbindung.** Die meisten kommen, bevor der Body
+gelesen ist. Auf einer offenen HTTP/1.1-Verbindung wurden diese Bytes bisher als
+nächste Anfrage gelesen — mit gültigem Key darin auch weitergereicht. Kein Weg
+am Key vorbei, aber eine Anfrage, die niemand so gestellt hat. Geprüft in
+`test_ungelesener_body_wird_nicht_zur_naechsten_anfrage`.
+
 ## Offen
 
 **botproxy selbst lief noch nie gegen einen echten Endpunkt.** Alles bisher
@@ -128,9 +142,6 @@ Start mit Platzhalterwerten (`config.validate`).
 **Kein Log.** Absichtlich: Header tragen das Token, Bodies den Quelltext des
 Benutzers. Falls Diagnose nötig wird, muss vorher feststehen, was nicht
 hineindarf.
-
-**Anfragen ohne `Content-Length`** (`Transfer-Encoding: chunked`) gehen mit
-leerem Body hinaus, ohne Meldung. Ein 411 wäre ehrlicher.
 
 **Der Pre-commit-Hook ist nicht aktiv.** `hooks/pre-commit` liegt im Repo, aber
 ohne `git config core.hooksPath hooks` läuft er nie.

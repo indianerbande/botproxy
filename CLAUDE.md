@@ -102,4 +102,6 @@ Was Abdeckung braucht:
 - Ein rotiertes Refresh-Token wird gespeichert, das alte verschwindet.
 - Ein fremder Fingerprint verhindert die Erneuerung.
 - `Origin`, `Sec-Fetch-Site` und ein falscher API-Key ergeben 403.
+- `Transfer-Encoding` ergibt 411, eine unlesbare Länge 400. Nach jeder
+  Ablehnung ist die Verbindung zu, ungelesene Bytes werden keine Anfrage.
 - Kein Log-Eintrag enthält ein Token.
