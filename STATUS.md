@@ -4,7 +4,7 @@ Stand: 15. September 2026. Diese Datei ist der Einstieg für eine neue Sitzung.
 
 ## Was läuft
 
-Der Proxy ist vollständig und getestet. 40 Tests grün, Ruff sauber.
+Der Proxy ist vollständig und getestet. 52 Tests grün, Ruff sauber.
 
 Ein Lauf gegen einen Stub-Endpunkt funktioniert von außen: Anmeldung
 übersprungen bei gültigem Token, Modelle erkannt, Anfragen durchgereicht,
@@ -23,11 +23,11 @@ geladenen Modell.
 ```sh
 python -m venv .venv && . .venv/bin/activate
 pip install -r requirements.txt -r requirements-dev.txt
-pytest                      # ~45 s, startet eigene Stubs auf freien Ports
+pytest                      # ~70 s, startet eigene Stubs auf freien Ports
 ruff check . && ruff format .
 ```
 
-Ein vollständiger `pytest`-Lauf dauert eine Dreiviertelminute; einzelne Dateien
+Ein vollständiger `pytest`-Lauf dauert gut eine Minute; einzelne Dateien
 laufen in ein bis zwei Sekunden.
 
 ## Module
@@ -101,6 +101,13 @@ ihre ruhenden Verbindungen ständig. `Proxy.handle_error` schweigt jetzt bei
 `ConnectionResetError`, `ConnectionAbortedError` (so meldet Windows es) und
 `BrokenPipeError`; alles andere wird eine Zeile mit Typ und Meldung.
 
+**Der Start mit der unveränderten Vorlage wird gegen die Vorlage selbst
+geprüft.** `tests/test_config.py` liest die `set`-Zeilen aus
+`start-botproxy.cmd.example` und lädt `config` damit neu, wie ein echter Start
+es tut — Attribute direkt zu setzen übersprünge genau das Lesen der
+Umgebung. Kommt ein Platzhalter in die Vorlage, prüft der Test ihn mit; findet
+er keinen mehr, schlägt ein Wächtertest an.
+
 **Kein `chmod`.** Unter Windows schaltet es nur den Schreibschutz. Token und
 Key sind geschützt, weil sie unter `%USERPROFILE%` liegen und dessen ACL erben.
 
@@ -164,8 +171,13 @@ demselben `oauth.py` im selben Zielnetz:
 `slow_down` verhält.
 
 **Nicht automatisch getestet:** `__main__.status` gegen eine laufende Instanz
-(von Hand gegen LM Studio geprüft) und der Start mit Platzhalterwerten
-(`config.validate`).
+(von Hand gegen LM Studio geprüft).
+
+**Ein Schrägstrich am Ende von `BOTPROXY_BASE_URL` wird nicht entfernt.**
+`_env.require_url` gibt den Wert ohne ihn zurück, aber `config.validate`
+verwirft das Ergebnis. Aus `https://host/pfad/v1/` wird dann
+`https://host/pfad/v1//chat/completions`. Bei `AUTHORITY` passiert das nicht,
+`oauth.py` schneidet selbst ab. Nicht behoben.
 
 **Kein Log.** Absichtlich: Header tragen das Token, Bodies den Quelltext des
 Benutzers. Falls Diagnose nötig wird, muss vorher feststehen, was nicht

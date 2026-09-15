@@ -113,4 +113,6 @@ Was Abdeckung braucht:
   Ablehnung ist die Verbindung zu, ungelesene Bytes werden keine Anfrage.
 - Ein Client, der die Verbindung zurücksetzt, hinterlässt nichts im Fenster;
   ein echter Fehler eine Zeile, keinen Traceback.
+- Die unveränderte `start-botproxy.cmd.example` startet nicht; jeder
+  Platzhalter und jeder fehlende Wert wird mit Variablennamen gemeldet.
 - Kein Log-Eintrag enthält ein Token.
