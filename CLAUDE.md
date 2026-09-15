@@ -28,9 +28,8 @@ pytest                      # Tests
 ruff check . && ruff format .
 ```
 
-Kein uv, kein Lockfile. `requirements.txt` ist die einzige Wahrheit über
-Abhängigkeiten, und sie wird von Hand gepflegt — die Liste ist zwei Zeilen
-lang.
+`requirements.txt` ist die einzige Wahrheit über Abhängigkeiten und wird von
+Hand gepflegt — die Liste ist zwei Zeilen lang.
 
 ## Architektur
 
