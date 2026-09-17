@@ -154,6 +154,15 @@ die Dateien trotzdem sichtbar; nur das ZIP ist schlanker. Skripte stehen nicht
 darin; `tests/test_verteilung.py` hält das fest. Entpacken über eine
 alte Version löscht nichts — beim Update in einen frischen Ordner.
 
+Auf GitHub geprüft am 15. September 2026, Stand `753d627`: Das ZIP von
+`archive/refs/heads/main.zip` ist Datei für Datei gleich mit `git archive
+HEAD` — 16 Einträge mit Ordnern, kein Skript mit Shebang, kein Verweis auf eine
+ausgeschlossene Datei. Auf dem Windows-Rechner mit `curl.exe` geladen, mit
+`tar` entpackt, `.venv` angelegt, `pip install -r requirements.txt` ohne
+Fehler. Die unveränderte Kopie `start-botproxy.cmd` startet nicht und nennt
+`BOTPROXY_BASE_URL` mit seinem Platzhalter; `pause` hält das Fenster offen.
+Gemeldet wird nur der erste Fehler, nicht alle auf einmal.
+
 **Vollbildanzeige mit vier Bereichen, ohne Inhalt.** Kopf, Anfragen links,
 Antworten rechts, Status unten. `monitor.py` bekommt nur Methode, Pfad ohne
 Query, Größen, Zeiten und Statuscodes; ein Body kommt dort nie an, geparst wird
@@ -237,10 +246,6 @@ demselben `oauth.py` im selben Zielnetz:
 **Weiterhin ungeprüft:** ob der Provider `verification_uri_complete` liefert
 (dann ist der Code im Browser schon eingetragen) und wie er sich bei
 `slow_down` verhält.
-
-**Der echte GitHub-Download ist ungeprüft.** Dass GitHub `export-ignore`
-beachtet, ist nur lokal mit `git archive` nachgestellt. Nach dem Push einmal
-herunterladen und nachsehen.
 
 **Nicht automatisch getestet:** `__main__.status` gegen eine laufende Instanz
 (von Hand gegen LM Studio geprüft).
