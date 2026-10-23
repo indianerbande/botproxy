@@ -15,6 +15,7 @@
 /requirements-dev.txt   export-ignore
 /pyproject.toml         export-ignore
 /CLAUDE.md              export-ignore
+/AGENTS.md              export-ignore
 /STATUS.md              export-ignore
 
 # Git selbst
