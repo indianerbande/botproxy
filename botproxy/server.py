@@ -391,6 +391,8 @@ def _header(manager: tokens.Manager, proxy: Proxy, key: str) -> screen.Header:
     base = f"http://127.0.0.1:{config.PORT}"
     if manager.snapshot()["zustand"] == "anmeldung_läuft":
         token = "Anmeldung läuft — Link und Code unter Status"
+    elif not manager.renewable:
+        token = f"Zugang: {manager.describe_validity()}"
     else:
         token = f"Token {manager.describe_validity()}"
     return screen.Header(
@@ -403,7 +405,8 @@ def _header(manager: tokens.Manager, proxy: Proxy, key: str) -> screen.Header:
 def _plain_banner(manager: tokens.Manager, proxy: Proxy, key: str) -> None:
     say("")
     say(f"botproxy aktiv auf http://127.0.0.1:{config.PORT}")
-    say(f"Endpunkt {proxy.upstream_state} · Token {manager.describe_validity()}")
+    zugang = "Token" if manager.renewable else "Zugang:"
+    say(f"Endpunkt {proxy.upstream_state} · {zugang} {manager.describe_validity()}")
     say("")
     say(f"Client — Base URL: http://127.0.0.1:{config.PORT}/v1")
     say(f"Client — API-Key:  {key}")

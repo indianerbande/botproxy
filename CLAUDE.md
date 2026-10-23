@@ -57,6 +57,11 @@ Zwei Hälften, die sich an genau einer Stelle berühren: `forward.py` ruft
 weiß nichts über OAuth, die Rückseite nichts über HTTP-Weiterleitung. Wer
 beides in einer Datei anfasst, hat vermutlich die falsche offen.
 
+Mit festem Key (`BOTPROXY_UPSTREAM_API_KEY`) gibt `ensure_fresh()` den Key
+zurück, und die Rückseite tut sonst nichts: keine Anmeldung, kein Wecker,
+nichts auf der Platte. Bei 401 fragt `forward.py` nur `renewable` und meldet
+die Ablehnung über `refused()` — ohne zweiten Versuch.
+
 ```
 botproxy/
   __main__.py   Einsprung: serve (Vorgabe) und status
@@ -138,5 +143,9 @@ Was Abdeckung braucht:
 - Die unveränderte `start-botproxy.cmd.example` startet nicht; jeder
   Platzhalter und jeder fehlende Wert wird mit Variablennamen gemeldet.
 - Kein Log-Eintrag enthält ein Token.
+- Mit festem Key: keine Anfrage an den Identity Provider, kein Wecker, keine
+  Datei; ein 401 wird nicht wiederholt und einmal gemeldet; Status, Fenster und
+  Meldungen enthalten den Key nicht; fester Key und Anmeldedaten zugleich
+  verhindern den Start.
 - Die Anzeige passt genau ins Fenster, ordnet Anfrage und Antwort einander zu,
   und in ihr steht weder Token noch Key noch Body.

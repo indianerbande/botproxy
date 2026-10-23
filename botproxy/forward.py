@@ -52,7 +52,13 @@ def _client() -> httpx.Client:
 
 
 def clean_request_headers(headers: list[tuple[str, str]]) -> list[tuple[str, str]]:
-    """Everything the client sent, minus what must not travel further."""
+    """Everything the client sent, minus what must not travel further.
+
+    The header that carries the credential upstream is ours as well, whatever
+    its name: a client sending its own `api-key` must not reach the endpoint
+    with it.
+    """
+    replaced = REPLACED | {config.UPSTREAM_API_KEY_HEADER.lower()}
     listed = {
         name.strip().lower()
         for key, value in headers
@@ -63,7 +69,7 @@ def clean_request_headers(headers: list[tuple[str, str]]) -> list[tuple[str, str
         (key, value)
         for key, value in headers
         if key.lower() not in HOP_BY_HOP
-        and key.lower() not in REPLACED
+        and key.lower() not in replaced
         and key.lower() not in listed
     ]
 
@@ -130,6 +136,11 @@ class Forwarder:
         relayed = self._attempt(method, path, query, headers, body, token)
         if relayed.status != 401:
             return relayed
+        if not self._manager.renewable:
+            # A fixed key does not get better by asking again. The refusal goes
+            # through, and the window says once what to check.
+            self._manager.refused()
+            return relayed
         relayed.close()
         # The endpoint's opinion beats our arithmetic on `exp` — but only the
         # first of several refused requests needs to fetch a new token.
@@ -146,7 +157,10 @@ class Forwarder:
         token: str,
     ) -> Relayed:
         outgoing = clean_request_headers(headers)
-        outgoing.append(("Authorization", f"Bearer {token}"))
+        name = config.UPSTREAM_API_KEY_HEADER
+        # Only Authorization takes a scheme; under its own name the key goes bare.
+        bearer = name.lower() == config.AUTHORIZATION.lower()
+        outgoing.append((name, f"Bearer {token}" if bearer else token))
         context = self._client.stream(
             method,
             self.target(path, query),

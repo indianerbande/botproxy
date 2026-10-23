@@ -24,6 +24,8 @@ def status() -> int:
         return 1
     print(f"Zustand:  {payload.get('zustand')}")
     print(f"Endpunkt: {payload.get('endpunkt')}")
+    if payload.get("zugang") == "fester_key":
+        print("Zugang:   fester Key, ohne Anmeldung")
     if payload.get("gueltig_bis"):
         print(f"Token:    gültig bis {payload['gueltig_bis']}")
     return 0

@@ -15,7 +15,8 @@ rem      landen sie im Wert.
 rem
 rem  Weder Zugangs- noch Refresh-Token stehen hier. Beide leben unter
 rem  %USERPROFILE%\.botproxy\ und kommen von der Anmeldung. Ein Token in einer
-rem  Batchdatei waere ein Fund.
+rem  Batchdatei waere ein Fund. Fuer einen festen Key gilt dasselbe - siehe
+rem  unten, wie er ohne diese Datei auskommt.
 rem ---------------------------------------------------------------------------
 
 rem --- Ziel ------------------------------------------------------------------
@@ -38,6 +39,23 @@ rem nach Ablauf Schluss, und die Anmeldung kaeme jedes Mal wieder.
 rem allatclaims bringt die Claims der Anmeldung ins Token; fehlen sie, lehnt
 rem der Endpunkt mit 403 ab. Kennt der Provider den Scope nicht, weglassen.
 set BOTPROXY_SCOPES=openid allatclaims offline_access
+
+rem --- Fester Key (statt Anmeldung) -------------------------------------------
+rem Gibt der Endpunkt einen festen Key statt kurzlebiger Token aus, braucht
+rem botproxy keine Anmeldung. Dann oben BOTPROXY_AUTHORITY und
+rem BOTPROXY_CLIENT_ID mit "rem" auskommentieren und den Key setzen - beides
+rem zugleich lehnt botproxy beim Start ab.
+rem
+rem Der Key ist ein Geheimnis. Besser nicht hier, sondern einmal als
+rem Benutzervariable, in einer Eingabeaufforderung:
+rem     setx BOTPROXY_UPSTREAM_API_KEY dein-key
+rem und danach ein neues Fenster oeffnen. Hier eingetragen laege er im
+rem Klartext in dieser Datei; die Kopie ist gitignored, aber nicht geschuetzt.
+rem set BOTPROXY_UPSTREAM_API_KEY=FESTER-KEY
+rem
+rem Erwartet der Endpunkt den Key nicht als "Authorization: Bearer <Key>",
+rem sondern unter eigenem Namen, diesen Namen angeben (z. B. api-key).
+rem set BOTPROXY_UPSTREAM_API_KEY_HEADER=api-key
 
 rem --- Betrieb ---------------------------------------------------------------
 rem Port aendern, falls 8127 belegt ist. Muss dann auch in der Base URL des

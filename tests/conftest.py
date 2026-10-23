@@ -35,6 +35,9 @@ def settings(tmp_path, upstream, idp, monkeypatch):
     monkeypatch.setattr(config, "AUTHORITY", idp.base)
     monkeypatch.setattr(config, "CLIENT_ID", "test-client")
     monkeypatch.setattr(config, "SCOPES", "openid offline_access")
+    # Sign-in mode unless a test switches to a fixed key itself.
+    monkeypatch.setattr(config, "UPSTREAM_API_KEY", "")
+    monkeypatch.setattr(config, "UPSTREAM_API_KEY_HEADER", "Authorization")
     monkeypatch.setattr(config, "HOME", tmp_path)
     monkeypatch.setattr(config, "TOKEN_FILE", tmp_path / "token")
     monkeypatch.setattr(config, "REFRESH_FILE", tmp_path / "refresh.json")

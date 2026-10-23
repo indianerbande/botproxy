@@ -1,10 +1,17 @@
 # Stand
 
-Stand: 15. September 2026. Diese Datei ist der Einstieg für eine neue Sitzung.
+Stand: 23. Oktober 2026. Diese Datei ist der Einstieg für eine neue Sitzung.
 
 ## Was läuft
 
-Der Proxy ist vollständig und getestet. 79 Tests grün, Ruff sauber.
+Der Proxy ist vollständig und getestet. 101 Tests grün, Ruff sauber.
+
+**Fester Key statt Anmeldung** (23. Oktober 2026): `BOTPROXY_UPSTREAM_API_KEY`
+ersetzt Device Code Flow und Erneuerung, für Endpunkte, die einen festen Key
+statt kurzlebiger Token ausgeben; `BOTPROXY_UPSTREAM_API_KEY_HEADER` für einen
+anderen Namen als `Authorization`. Anlass: ein Rechner mit festem Key, dessen
+Client nur `localhost` als Endpunkt zulässt. Gegen Stubs
+geprüft, gegen den echten Endpunkt noch nicht (siehe „Offen“).
 
 Ein Lauf gegen einen Stub-Endpunkt funktioniert von außen: Anmeldung
 übersprungen bei gültigem Token, Modelle erkannt, Anfragen durchgereicht,
@@ -72,6 +79,16 @@ antworten und chunked streamen kann. Beide binden Port 0 und starten im
 Testlauf selbst.
 
 ## Entscheidungen, die nicht offensichtlich sind
+
+**Fester Key und Anmeldung schließen sich aus.** Sind `BOTPROXY_UPSTREAM_API_KEY`
+und `BOTPROXY_AUTHORITY` oder `BOTPROXY_CLIENT_ID` gesetzt, startet botproxy
+nicht: Es wäre nicht zu erkennen, welcher Weg gemeint ist, und ein stiller
+Vorrang des einen ließe den anderen unbemerkt liegen. Mit festem Key wird ein
+401 nicht wiederholt — derselbe Key wird beim zweiten Mal nicht besser —, und
+im Fenster steht einmal, was zu prüfen ist. Der Key landet in keiner Datei
+unter `%USERPROFILE%\.botproxy\`; ein dort liegendes Token aus der Anmeldung
+wird nicht gelesen. Nur der exakte Platzhalter `FESTER-KEY` gilt als
+Platzhalter, weil ein echter Key zufällig „HOST“ oder „PFAD“ enthalten kann.
 
 **`force_refresh(stale=…)`.** Nach einem 401 erneuert nur der erste Aufrufer.
 Wer die Sperre später bekommt und feststellt, dass sein abgewiesenes Token
@@ -216,6 +233,11 @@ am Key vorbei, aber eine Anfrage, die niemand so gestellt hat. Geprüft in
 `test_ungelesener_body_wird_nicht_zur_naechsten_anfrage`.
 
 ## Offen
+
+**Fester Key gegen den echten Endpunkt.** Bisher nur gegen den Stub: Key kommt
+als `Authorization: Bearer` bzw. unter eigenem Namen an, 401 geht ohne zweiten
+Versuch durch. Beim ersten echten Lauf prüfen, ob der Endpunkt den Key als Bearer
+oder unter einer eigenen Kopfzeile erwartet.
 
 **Die Vollbildanzeige im Doppelklick-Fenster ansehen.** Geprüft ist sie nur
 über `ssh -t` (ConPTY). Ein per Doppelklick auf `start-botproxy.cmd`

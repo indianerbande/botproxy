@@ -43,6 +43,8 @@ Alles über Umgebungsvariablen.
 | `BOTPROXY_REFRESH_MARGIN` | `300` | Sekunden vor Ablauf wird erneuert |
 | `BOTPROXY_CHECK_INTERVAL` | `60` | Sekunden zwischen zwei Prüfungen |
 | `BOTPROXY_UPSTREAM_TIMEOUT` | `600` | Sekunden, die auf den Endpunkt gewartet wird |
+| `BOTPROXY_UPSTREAM_API_KEY` | — | fester Key statt Anmeldung; dann ohne `BOTPROXY_AUTHORITY` und `BOTPROXY_CLIENT_ID` |
+| `BOTPROXY_UPSTREAM_API_KEY_HEADER` | `Authorization` | Kopfzeile für den festen Key; unter einem anderen Namen (z. B. `api-key`) geht er ohne „Bearer“ |
 
 Token und lokaler API-Key liegen unter `%USERPROFILE%\.botproxy\`. Lesen
 dürfen sie, wem das Benutzerprofil gehört — die Dateien erben dessen Rechte.
@@ -56,6 +58,29 @@ durch und sagt im Fenster, woran es vermutlich liegt.
 Ein 403 vom Endpunkt heißt dagegen: das Token wurde verstanden, es fehlt die
 Berechtigung. Das klärt der Betreiber, nicht botproxy. Die 403-Antworten von
 botproxy selbst tragen `"type": "botproxy"` und sind daran zu unterscheiden.
+
+## Fester Key statt Anmeldung
+
+Manche Endpunkte geben statt kurzlebiger Token einen festen Key aus. Dann
+meldet sich botproxy nicht an: `BOTPROXY_UPSTREAM_API_KEY` setzen,
+`BOTPROXY_AUTHORITY` und `BOTPROXY_CLIENT_ID` leer lassen. Beides zugleich
+lehnt botproxy beim Start ab — es wäre nicht zu erkennen, welcher Weg gemeint
+ist. Ein mitkopiertes `Bearer ` vor dem Key fällt weg.
+
+Der Key geht als `Authorization: Bearer <Key>` an den Endpunkt, mit
+`BOTPROXY_UPSTREAM_API_KEY_HEADER` unter einem anderen Namen und dann bloß.
+Der lokale API-Key des Clients bleibt, wie er ist; er erreicht den Endpunkt
+in keinem Fall.
+
+Mit festem Key gibt es nichts zu erneuern: kein Wecker, keine Datei unter
+`%USERPROFILE%\.botproxy\` für den Key, und ein 401 vom Endpunkt wird nicht
+wiederholt, sondern durchgereicht. Im Fenster steht einmal, was zu prüfen ist.
+Status und Fenster zeigen „fester Key“, nie den Wert.
+
+Der Key ist ein Geheimnis wie ein Token. Statt ihn in `start-botproxy.cmd`
+einzutragen, besser einmal als Benutzervariable setzen:
+`setx BOTPROXY_UPSTREAM_API_KEY …` in einer Eingabeaufforderung, danach ein
+neues Fenster öffnen.
 
 ## Client einrichten
 
