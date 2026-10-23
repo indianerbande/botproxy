@@ -7,6 +7,7 @@ someone opening this file expects them.
 
 from __future__ import annotations
 
+import re
 import secrets
 from pathlib import Path
 
@@ -34,6 +35,20 @@ CLIENT_ID: str = _env.string("BOTPROXY_CLIENT_ID")
 # weglassen.
 SCOPES: str = _env.string("BOTPROXY_SCOPES", "openid allatclaims offline_access")
 
+# --- Fester Key (statt Anmeldung) --------------------------------------------
+# Manche Endpunkte geben statt kurzlebiger Token einen festen Key aus. Ist er
+# gesetzt, meldet sich botproxy nicht an und erneuert nichts; AUTHORITY und
+# CLIENT_ID bleiben dann leer. Der Key ist ein Geheimnis wie ein Token: er wird
+# nicht gespeichert, nicht angezeigt und nicht geloggt.
+UPSTREAM_API_KEY: str = _env.key("BOTPROXY_UPSTREAM_API_KEY")
+
+# Die meisten Endpunkte erwarten `Authorization: Bearer <Key>`. Andere wollen den
+# Key bloß, unter eigenem Namen (`api-key`, `X-API-Key`) — dann ohne „Bearer“.
+AUTHORIZATION = "Authorization"
+UPSTREAM_API_KEY_HEADER: str = _env.string(
+    "BOTPROXY_UPSTREAM_API_KEY_HEADER", AUTHORIZATION
+)
+
 # --- Betrieb -----------------------------------------------------------------
 PORT: int = _env.integer("BOTPROXY_PORT", 8127)
 REFRESH_MARGIN_SECONDS: int = _env.integer("BOTPROXY_REFRESH_MARGIN", 300)
@@ -56,6 +71,20 @@ def validate() -> None:
     because that is the only thing the reader can act on.
     """
     _env.require_url("BOTPROXY_BASE_URL", BASE_URL)
+    if UPSTREAM_API_KEY:
+        _validate_fixed_key()
+    else:
+        _validate_sign_in()
+    if not 1 <= PORT <= 65535:
+        raise ConfigError(f"BOTPROXY_PORT liegt außerhalb 1-65535: {PORT}")
+
+
+def _validate_sign_in() -> None:
+    if UPSTREAM_API_KEY_HEADER.lower() != AUTHORIZATION.lower():
+        raise ConfigError(
+            "BOTPROXY_UPSTREAM_API_KEY_HEADER ist gesetzt, aber kein "
+            "BOTPROXY_UPSTREAM_API_KEY. Die Kopfzeile gilt nur für einen festen Key."
+        )
     _env.require_url("BOTPROXY_AUTHORITY", AUTHORITY)
     _env.require_value("BOTPROXY_CLIENT_ID", CLIENT_ID)
     if "offline_access" not in SCOPES.split():
@@ -64,13 +93,51 @@ def validate() -> None:
             "gibt der Identity Provider kein Refresh-Token aus, und nach einer "
             "Stunde käme die Anmeldung wieder."
         )
-    if not 1 <= PORT <= 65535:
-        raise ConfigError(f"BOTPROXY_PORT liegt außerhalb 1-65535: {PORT}")
     if REFRESH_MARGIN_SECONDS <= CHECK_INTERVAL_SECONDS:
         raise ConfigError(
             "BOTPROXY_REFRESH_MARGIN muss größer sein als "
             "BOTPROXY_CHECK_INTERVAL, sonst kann der Wecker den Ablauf "
             "verschlafen."
+        )
+
+
+def _validate_fixed_key() -> None:
+    """Fixed key instead of sign-in. Messages never repeat the key itself."""
+    beide = [
+        name
+        for name, value in (
+            ("BOTPROXY_AUTHORITY", AUTHORITY),
+            ("BOTPROXY_CLIENT_ID", CLIENT_ID),
+        )
+        if value
+    ]
+    if beide:
+        raise ConfigError(
+            f"BOTPROXY_UPSTREAM_API_KEY und {' und '.join(beide)} sind gesetzt. "
+            "Entweder fester Key oder Anmeldung: für den festen Key "
+            "BOTPROXY_AUTHORITY und BOTPROXY_CLIENT_ID leer lassen (in "
+            "start-botproxy.cmd die beiden Zeilen auskommentieren)."
+        )
+    if UPSTREAM_API_KEY == _env.KEY_PLACEHOLDER:
+        raise ConfigError(
+            f"BOTPROXY_UPSTREAM_API_KEY enthält noch einen Platzhalter: "
+            f"{_env.KEY_PLACEHOLDER!r}. Trage den Key ein."
+        )
+    if (
+        not re.fullmatch(r"[\x21-\x7e]+", UPSTREAM_API_KEY)
+        or UPSTREAM_API_KEY[0] in "\"'"
+        or UPSTREAM_API_KEY[-1] in "\"'"
+    ):
+        raise ConfigError(
+            "BOTPROXY_UPSTREAM_API_KEY enthält Leerzeichen, Anführungszeichen "
+            "oder Zeichen außerhalb von ASCII. Der Key gehört in eine Zeile, "
+            "ohne Anführungszeichen."
+        )
+    if not re.fullmatch(r"[A-Za-z0-9-]+", UPSTREAM_API_KEY_HEADER):
+        raise ConfigError(
+            "BOTPROXY_UPSTREAM_API_KEY_HEADER ist kein gültiger Name einer "
+            f"Kopfzeile: {UPSTREAM_API_KEY_HEADER!r}. Erlaubt sind Buchstaben, "
+            "Ziffern und Bindestrich, z. B. Authorization oder api-key."
         )
 
 

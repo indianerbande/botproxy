@@ -80,7 +80,12 @@ class Manager:
         self._login_unanswered = False
         self._stop = threading.Event()
         self._watchdog: threading.Thread | None = None
-        self._load_from_disk()
+        # A fixed key replaces everything below: no sign-in, no renewal, nothing
+        # on disk. A token file left over from sign-in mode is not read — it
+        # would win against the key the user just configured.
+        self._fixed: str | None = config.UPSTREAM_API_KEY or None
+        if self._fixed is None:
+            self._load_from_disk()
 
     # --- Zustand -------------------------------------------------------------
 
@@ -89,6 +94,11 @@ class Manager:
         if token:
             self._access = token
             self._expires_at = store.jwt_expiry(token)
+
+    @property
+    def renewable(self) -> bool:
+        """False on a fixed key: a refusal is final, asking again changes nothing."""
+        return self._fixed is None
 
     def remaining(self) -> timedelta | None:
         if self._expires_at is None:
@@ -111,6 +121,13 @@ class Manager:
 
     def snapshot(self) -> dict[str, object]:
         """What `status` reports. No token in here, not even masked."""
+        if self._fixed is not None:
+            return {
+                "zustand": "ok",
+                "zugang": "fester_key",
+                "gueltig_bis": None,
+                "restlaufzeit_sekunden": None,
+            }
         with self._lock:
             left = self.remaining()
             if self._pending is not None:
@@ -121,6 +138,7 @@ class Manager:
                 state = "kein_token"
             return {
                 "zustand": state,
+                "zugang": "anmeldung",
                 "gueltig_bis": (
                     self._expires_at.astimezone().isoformat()
                     if self._expires_at
@@ -140,6 +158,8 @@ class Manager:
         before a request ever arrives. It only does anything when the watchdog
         was too slow or has not run yet.
         """
+        if self._fixed is not None:
+            return self._fixed
         with self._lock:
             if self._pending is not None:
                 raise LoginRequired(self._pending)
@@ -170,6 +190,8 @@ class Manager:
         it says the configuration is wrong, not the token — and the refusal
         goes through to the client, which shows the endpoint's own reason.
         """
+        if self._fixed is not None:
+            return self._fixed
         with self._lock:
             if stale is not None and self._access is not None and self._access != stale:
                 return self._access
@@ -185,6 +207,19 @@ class Manager:
                 return self._access
             self._expires_at = datetime.now(UTC)
             return self.ensure_fresh()
+
+    def refused(self) -> None:
+        """The endpoint refused the fixed key. Said once, not once per request."""
+        with self._lock:
+            if self._refusal_reported:
+                return
+            self._refusal_reported = True
+        self._notify(
+            "Der Endpunkt lehnt den festen Key ab (401). Erneuern gibt es hier "
+            "nicht — BOTPROXY_UPSTREAM_API_KEY prüfen, und ob der Endpunkt den "
+            "Key unter einer anderen Kopfzeile erwartet "
+            "(BOTPROXY_UPSTREAM_API_KEY_HEADER)."
+        )
 
     def _freshly_issued(self) -> bool:
         if self._issued_at is None:
@@ -333,7 +368,7 @@ class Manager:
         It starts one, not one after another. A code that ran out unconfirmed
         says nobody is there, and from then on only a request asks again.
         """
-        if self._watchdog is not None:
+        if self._watchdog is not None or self._fixed is not None:
             return
         self._watchdog = threading.Thread(
             target=self._tick, name="botproxy-watchdog", daemon=True
@@ -361,6 +396,8 @@ class Manager:
 
     def describe_validity(self) -> str:
         """One line about the token's life, for the window and for `status`."""
+        if self._fixed is not None:
+            return "fester Key, ohne Ablauf"
         if self._expires_at is None:
             return "kein JWT — keine Ablaufzeit ermittelbar"
         left = self.remaining()

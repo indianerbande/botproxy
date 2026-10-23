@@ -146,3 +146,82 @@ def test_schraegstrich_am_ende_faellt_weg(umgebung):
         f.close()
     assert ziel == "http://127.0.0.1:1/v1/chat/completions"
     assert config.AUTHORITY == "http://127.0.0.1:2"
+
+
+# --- Fester Key statt Anmeldung ----------------------------------------------
+
+FESTER_KEY = {
+    "BOTPROXY_BASE_URL": "http://127.0.0.1:1/v1",
+    "BOTPROXY_UPSTREAM_API_KEY": "fester-test-key",
+}
+
+
+def test_fester_key_braucht_keine_anmeldedaten(umgebung):
+    umgebung(FESTER_KEY)
+    config.validate()
+    assert config.UPSTREAM_API_KEY == "fester-test-key"
+
+
+@pytest.mark.parametrize("name", ["BOTPROXY_AUTHORITY", "BOTPROXY_CLIENT_ID"])
+def test_fester_key_und_anmeldung_schliessen_sich_aus(umgebung, name):
+    """Two ways to get a credential, and no way to tell which one is meant."""
+    umgebung({**FESTER_KEY, name: GUELTIG[name]})
+
+    with pytest.raises(ConfigError) as fehler:
+        config.validate()
+
+    assert "BOTPROXY_UPSTREAM_API_KEY" in str(fehler.value)
+    assert name in str(fehler.value)
+
+
+def test_bearer_vor_dem_key_faellt_weg(umgebung):
+    """Pasted together with its prefix, the key would be sent as `Bearer Bearer …`."""
+    umgebung({**FESTER_KEY, "BOTPROXY_UPSTREAM_API_KEY": "Bearer fester-test-key"})
+    config.validate()
+    assert config.UPSTREAM_API_KEY == "fester-test-key"
+
+
+@pytest.mark.parametrize(
+    "wert", ["fester test key", "fester-tëst-key", '"fester-test-key"']
+)
+def test_key_mit_leerzeichen_umlaut_oder_anfuehrungszeichen_wird_abgelehnt(
+    umgebung, wert
+):
+    umgebung({**FESTER_KEY, "BOTPROXY_UPSTREAM_API_KEY": wert})
+
+    with pytest.raises(ConfigError, match="BOTPROXY_UPSTREAM_API_KEY"):
+        config.validate()
+
+
+def test_platzhalter_als_key_wird_erkannt(umgebung):
+    umgebung({**FESTER_KEY, "BOTPROXY_UPSTREAM_API_KEY": "FESTER-KEY"})
+
+    with pytest.raises(ConfigError, match="BOTPROXY_UPSTREAM_API_KEY.*Platzhalter"):
+        config.validate()
+
+
+def test_eigene_kopfzeile_fuer_den_key(umgebung):
+    umgebung({**FESTER_KEY, "BOTPROXY_UPSTREAM_API_KEY_HEADER": "api-key"})
+    config.validate()
+    assert config.UPSTREAM_API_KEY_HEADER == "api-key"
+
+
+def test_ungueltige_kopfzeile_wird_abgelehnt(umgebung):
+    umgebung({**FESTER_KEY, "BOTPROXY_UPSTREAM_API_KEY_HEADER": "api key"})
+
+    with pytest.raises(ConfigError, match="BOTPROXY_UPSTREAM_API_KEY_HEADER"):
+        config.validate()
+
+
+def test_kopfzeile_ohne_festen_key_wird_abgelehnt(umgebung):
+    """Without a fixed key there is nothing to put into that header."""
+    umgebung({**GUELTIG, "BOTPROXY_UPSTREAM_API_KEY_HEADER": "api-key"})
+
+    with pytest.raises(ConfigError, match="BOTPROXY_UPSTREAM_API_KEY_HEADER"):
+        config.validate()
+
+
+def test_vorlage_setzt_keinen_festen_key():
+    """The template only mentions it; set, it would collide with the sign-in values."""
+    assert "BOTPROXY_UPSTREAM_API_KEY" not in vorlage()
+    assert "BOTPROXY_UPSTREAM_API_KEY" in VORLAGE.read_text(encoding="utf-8")

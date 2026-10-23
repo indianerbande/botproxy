@@ -12,6 +12,7 @@ diagnosis.
 from __future__ import annotations
 
 import os
+import re
 from urllib.parse import urlparse
 
 from botproxy.errors import ConfigError
@@ -23,6 +24,9 @@ from_env: set[str] = set()
 # Substrings that give away a template someone copied but never filled in.
 PLACEHOLDERS = ("HOST", "PFAD", "MODELLNAME", "CLIENT-ID", ".invalid")
 NULL_GUID = "00000000-0000-0000-0000-000000000000"
+# The template's value for the fixed key. Only the exact string counts: a real
+# key is random and may well contain "HOST" or "PFAD" somewhere.
+KEY_PLACEHOLDER = "FESTER-KEY"
 
 
 def _raw(name: str) -> str | None:
@@ -45,6 +49,18 @@ def looks_like_placeholder(value: str) -> bool:
 def string(name: str, default: str = "") -> str:
     value = _raw(name)
     return default if value is None else value
+
+
+def key(name: str) -> str:
+    """A secret as the endpoint expects it: without a pasted `Bearer ` in front.
+
+    Copied from a curl line, the prefix comes along, and the endpoint would get
+    `Bearer Bearer …` and answer 401 without saying why.
+    """
+    value = _raw(name)
+    if value is None:
+        return ""
+    return re.sub(r"(?i)^bearer\s+", "", value)
 
 
 def integer(name: str, default: int) -> int:
